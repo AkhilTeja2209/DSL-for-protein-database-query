@@ -1,7 +1,7 @@
 LOAD "dataset/proteins.csv"
 
 FIND proteins
-WHERE organism = "Human"
-AND length > 300
+WHERE unknown_field = "Human"
+AND name > 500
 
 DISPLAY name length function
