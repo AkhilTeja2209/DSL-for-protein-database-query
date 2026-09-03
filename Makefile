@@ -43,8 +43,10 @@ $(BIN): $(OBJS)
 run-valid: $(BIN)
 	./$(BIN) sample_queries/valid_query.dsl
 
+# This sample is supposed to fail semantic analysis (exit 3), so the leading
+# "-" stops make from reporting the expected failure as a build error.
 run-invalid: $(BIN)
-	./$(BIN) sample_queries/invalid_query.dsl
+	-./$(BIN) sample_queries/invalid_query.dsl
 
 clean:
 	rm -rf $(BUILD) bin

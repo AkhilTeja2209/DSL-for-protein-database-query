@@ -4,24 +4,30 @@ A Domain-Specific Language (DSL) for Protein Database Query and Analysis
 — a Compiler Design project applying lexical analysis, syntax analysis,
 semantic analysis and query execution to a bioinformatics problem.
 
-> **Status: initial, partial implementation.** This is a demonstration of
-> the architecture and pipeline from the project plan, not the finished
-> compiler. See [Current Status](#current-status) for exactly what works
-> today and what's left.
+Queries run either against a bundled CSV or against **live UniProt data**,
+and there is a small web playground for writing and running programs in a
+browser.
 
 ## What it does
 
-ProteinDSL lets you query a CSV of protein records with a small,
-readable language instead of general-purpose SQL:
+```
+LOAD UNIPROT "kinase AND organism_id:9606 AND reviewed:true" TOP 100
+
+FIND proteins
+WHERE length > 800
+SORT BY length DESC
+TOP 10
+DISPLAY proteinid name length function
+```
 
 ```
 LOAD "dataset/proteins.csv"
 
 FIND proteins
-WHERE organism = "Human"
-AND length > 300
-
-DISPLAY name length function
+WHERE organism = "Human" AND length > 500
+OR organism = "Chicken"
+SORT BY length DESC
+DISPLAY proteinid name organism length
 ```
 
 ## System Architecture
@@ -36,46 +42,73 @@ DISPLAY name length function
    Parser (Bison)          Phase 2 - validates tokens against the grammar,
         |                             builds an AST
         v
- Semantic Analyzer         Phase 3 - validates fields, operators, types
-        |
+ Semantic Analyzer         Phase 3 - validates entity, fields, operators,
+        |                             types, TOP, and LOAD-before-FIND
         v
-  Execution Engine         Phase 4 - reads the CSV, filters/sorts/selects
-        |
+  Execution Engine         Phase 4 - loads CSV or UniProt, filters, sorts,
+        |                             selects columns, counts
         v
-      Output
+      Output               aligned table, COUNT, or one JSON document
 ```
 
 ## Tech Stack
 
-| Concern                     | Choice                                   |
-|------------------------------|-------------------------------------------|
-| Lexical analysis              | Flex                                      |
-| Syntax analysis / parsing     | GNU Bison (`bison -d`, C++ output)        |
-| Semantic analysis & execution | C++17                                     |
-| Dataset storage               | CSV (`dataset/proteins.csv`)              |
-| Data structures                | C++ STL (`vector`, `string`, file I/O)    |
-| Build                          | GNU Make + g++                            |
-| Target environment             | Linux / WSL (or any POSIX shell with flex/bison/g++) |
+| Concern                       | Choice                                        |
+|-------------------------------|-----------------------------------------------|
+| Lexical analysis              | Flex                                          |
+| Syntax analysis / parsing     | GNU Bison (`bison -d`, C++ output)            |
+| Semantic analysis & execution | C++17                                         |
+| Data sources                  | CSV (`dataset/proteins.csv`), UniProt REST API |
+| HTTP client                   | `curl`, invoked by the executor               |
+| Web playground                | Python 3 standard library only                |
+| Build                         | GNU Make + g++                                 |
+| Target environment            | Linux / WSL / Windows (see Building below)     |
 
-This matches the "Technology Stack" slide of the project plan exactly.
+The executor shells out to `curl` rather than linking libcurl, so the
+compiler itself has no third-party dependencies and builds anywhere flex,
+bison and a C++17 compiler are present.
 
-## Core Language Features
+## Language Reference
 
-`LOAD`, `FIND`, `WHERE`, `AND` / `OR`, `COUNT`, `DISPLAY`, `SORT BY`,
-`TOP`, `SEARCH` — all tokenized by the lexer today (see [Current
-Status](#current-status) for which ones the parser and executor accept
-so far).
+Protein attributes: `proteinid`, `name`, `organism`, `length`, `function`,
+`sequence`. Attribute names are case-insensitive; keywords are uppercase.
+
+| Clause | Meaning |
+|--------|---------|
+| `LOAD "path.csv"` | Read a local CSV (`ProteinID,Name,Organism,Length,Function,Sequence`). |
+| `LOAD UNIPROT "<query>" [TOP n]` | Run a live [UniProt](https://rest.uniprot.org) search. `n` defaults to 50, max 500. |
+| `FIND proteins` | Query the loaded records. Every clause below is optional. |
+| `SEARCH "text"` | Case-insensitive substring scan across **every** attribute, sequences included — which makes it a naive motif search. |
+| `WHERE <cond> [AND\|OR <cond>]...` | Filter. `AND` binds tighter than `OR`. |
+| `SORT BY <field> [ASC\|DESC]` | Ordering; numeric for `length`, case-insensitive text otherwise. `ASC` is the default. |
+| `TOP n` | Keep only the first `n` results. |
+| `DISPLAY <fields>` | Choose output columns. |
+| `COUNT` | Report the number of matches instead of listing them. |
+
+Comparison operators are `=`, `!=`, `>`, `<`, `>=`, `<=`. The ordering
+operators are only valid on `length`; the others are valid on any
+attribute.
+
+Two semantics worth knowing:
+
+- **`=` on a text attribute is an exact, case-insensitive match**, not a
+  substring match. UniProt reports organisms as `Homo sapiens (Human)`, so
+  filter species in the UniProt query itself (`organism_id:9606`) or use
+  `SEARCH` for partial text.
+- **UniProt function text is cleaned**: the leading `FUNCTION: ` and the
+  `{ECO:...}` evidence tags are stripped, since they are metadata rather
+  than content. Every other field is passed through verbatim.
 
 ## Project Structure
 
 ```
 ProteinDSL/
 │
-├── lexer.l              Phase 1: Flex lexer
+├── lexer.l               Phase 1: Flex lexer
 ├── parser.y              Phase 2: Bison grammar
 ├── ast.h / ast.cpp       Internal representation (AST) + pretty-printer
 ├── semantic.h / .cpp     Phase 3: semantic checks
-├── executor.h / .cpp     Phase 4: CSV loading + (stubbed) query execution
+├── executor.h / .cpp     Phase 4: CSV + UniProt loading, filtering, sorting
 ├── main.cpp              Driver: wires the pipeline together
 ├── Makefile
 │
@@ -83,10 +116,14 @@ ProteinDSL/
 │   └── proteins.csv      Sample protein records
 │
 ├── sample_queries/
-│   ├── valid_query.dsl    Runs the full pipeline successfully
-│   └── invalid_query.dsl  Demonstrates semantic error reporting
+│   ├── valid_query.dsl     The basic end-to-end example
+│   ├── advanced_query.dsl  OR / SORT BY / TOP / SEARCH / COUNT
+│   ├── uniprot_query.dsl   Live UniProt search
+│   └── invalid_query.dsl   Demonstrates semantic error reporting
 │
-└── README.md
+└── server/
+    ├── app.py            Web playground (Python stdlib only)
+    └── static/           index.html, app.css, app.js
 ```
 
 ## Building & Running
@@ -94,15 +131,39 @@ ProteinDSL/
 Requires `flex`, `bison`, and a C++17 compiler (`g++`).
 
 ```bash
-# Debian/Ubuntu, if you don't already have them:
+# Debian/Ubuntu
 sudo apt-get install -y flex bison g++ make
+```
 
+```powershell
+# Windows, via Scoop
+scoop install gcc winflexbison make
+```
+
+```bash
 make
 ./bin/proteindsl sample_queries/valid_query.dsl
+./bin/proteindsl sample_queries/advanced_query.dsl
+./bin/proteindsl sample_queries/uniprot_query.dsl
 ./bin/proteindsl sample_queries/invalid_query.dsl
 ```
 
 `make run-valid` and `make run-invalid` do the same thing.
+
+### Command-line options
+
+```
+bin/proteindsl [options] <path-to-.dsl-file | ->
+```
+
+| Option | Effect |
+|--------|--------|
+| `--json` | Emit one JSON document (AST, errors, results) instead of the phase report. |
+| `--dataset-root <dir>` | Confine file `LOAD`s to `<dir>`. |
+| `--no-network` | Refuse `LOAD UNIPROT`. |
+| `--cache-dir <dir>` | Where fetched UniProt responses are kept (default `.cache/`). |
+
+A path of `-` reads the program from stdin.
 
 ### Expected output (valid query)
 
@@ -124,9 +185,16 @@ No semantic errors found.
 
 == Phase 4: Query Execution ==
   [executor] Reading dataset: dataset/proteins.csv
-  [executor] Loaded 5 protein record(s).
-  [executor] 5 record(s) loaded and available for entity 'proteins'.
-  [executor] filter / sort / display execution: NOT YET IMPLEMENTED.
+  [executor] Loaded 5 protein record(s) from dataset/proteins.csv.
+  +------------+--------+------------------+
+  | name       | length | function         |
+  +------------+--------+------------------+
+  | Hemoglobin | 574    | Oxygen Transport |
+  | Albumin    | 609    | Transport        |
+  +------------+--------+------------------+
+  2 row(s)
+
+Done.
 ```
 
 ### Expected output (invalid query)
@@ -135,36 +203,60 @@ No semantic errors found.
 == Phase 3: Semantic Analysis ==
 Semantic Error: Unknown protein attribute 'unknown_field'
 Semantic Error: Cannot compare string attribute 'name' with numeric operator '>'
+Semantic Error: Attribute 'name' expects a string value, got 500
 
 Semantic analysis failed; stopping before execution.
 ```
 
+## Web Playground
+
+```bash
+make                       # the server runs the compiled binary
+python server/app.py       # http://127.0.0.1:8000
+```
+
+A textarea for the program, the sample queries as one-click examples, the
+results as tables, and the parsed AST alongside them. `Ctrl+Enter` runs.
+
+The server contains no query logic — it pipes the submitted program into
+`bin/proteindsl -` with `--json` and renders what comes back.
+
+### On running submitted programs
+
+A submitted program is arbitrary input, so the server runs the binary with
+`--dataset-root dataset`, which rejects any `LOAD` resolving outside that
+directory, under a 90-second timeout and an 8 KB program limit. It binds to
+`127.0.0.1` by default. `LOAD UNIPROT` stays enabled because the executor
+builds the UniProt URL itself and percent-encodes the query, so a query
+string cannot become shell syntax or reach another host.
+
+That is enough for local use. It is **not** an audited sandbox — don't put
+this on a public address without putting it in a container first.
+
 ## Current Status
 
-This repo is an **initial demonstration**, deliberately scoped down from
-the full compiler in the project plan, to show the architecture works
-end to end before building out every phase.
+Implemented and tested end to end:
 
-Implemented and tested:
-- **Lexer** — every keyword, operator, string/number literal from the
-  spec is tokenized, with lexical-error reporting (line numbers).
-- **Parser** — the core grammar from the example program: `LOAD`,
-  `FIND ... WHERE <cond> (AND <cond>)* ... DISPLAY <fields>`, building a
-  real AST, with syntax-error reporting.
-- **Semantic analysis** — unknown-attribute and type-mismatch checks
-  (e.g. `length` must be compared numerically, `name` must not be).
-- **CSV loading** — `dataset/proteins.csv` is parsed into `ProteinRecord`
-  structs.
+- **Lexer** — every keyword, operator and literal in the language, with
+  lexical-error reporting by line number.
+- **Parser** — the full grammar above, conflict-free, building an AST.
+- **Semantic analysis** — unknown entity, unknown attribute, operator/type
+  mismatch in both directions, unknown `SORT BY` field, non-positive `TOP`,
+  and `FIND` before any `LOAD`.
+- **Execution** — CSV and live UniProt loading, `SEARCH`, `WHERE` with
+  `AND`/`OR`, `SORT BY` with direction, `TOP`, `COUNT`, and `DISPLAY`
+  column selection, rendered as an aligned table or as JSON.
+- **Web playground** — runs all of the above in a browser.
 
-Not yet implemented (next milestones, roughly following the
-Implementation Plan in the project proposal):
-- `OR` in `WHERE` clauses (only `AND` is wired into the grammar so far).
-- `COUNT`, `SORT BY`, `TOP`, `SEARCH` — tokenized by the lexer already,
-  not yet accepted by the parser grammar.
-- Actual query execution: applying `WHERE` as a filter, `SORT BY`,
-  `COUNT`, and printing only the `DISPLAY`-selected columns. Right now
-  the executor only loads the CSV and reports the record count.
-- Runtime error handling beyond a missing/malformed dataset file.
+Known limits:
+
+- `WHERE` has no parentheses; precedence is fixed at `AND` over `OR`.
+- Ordering comparisons are only meaningful on `length` (the one numeric
+  attribute), which semantic analysis enforces.
+- One `LOAD` is in effect at a time — a later `LOAD` replaces the dataset
+  rather than joining it.
+- UniProt responses are cached by URL and never expire; delete `.cache/`
+  to force a refetch.
 
 ## License
 

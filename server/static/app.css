@@ -1,0 +1,101 @@
+  :root {
+    --bg: #10131a;
+    --panel: #171b24;
+    --panel-2: #1e2430;
+    --line: #2b3342;
+    --text: #dfe5ef;
+    --muted: #8d99ad;
+    --accent: #6ea8fe;
+    --ok: #5fd39a;
+    --err: #ff8a8a;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 16px; letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  main {
+    display: grid; grid-template-columns: minmax(340px, 5fr) 7fr;
+    gap: 16px; padding: 16px; align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+  }
+  .panel > h2 {
+    margin: 0; padding: 9px 12px; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+    border-bottom: 1px solid var(--line); background: var(--panel-2);
+  }
+  .panel > .body { padding: 12px; }
+
+  textarea {
+    width: 100%; min-height: 230px; resize: vertical;
+    background: #0c0f15; color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 11px; font: 13px/1.6 var(--mono);
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  button {
+    font: inherit; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); padding: 7px 13px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.run { background: var(--accent); border-color: var(--accent); color: #0b1017; font-weight: 600; }
+  .hint { color: var(--muted); font-size: 12px; }
+
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .examples button { padding: 4px 9px; font-size: 12px; text-transform: capitalize; }
+
+  .status { margin: 0 0 12px; font-size: 13px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .status.busy { color: var(--muted); }
+
+  ul.errors { margin: 0 0 12px; padding-left: 18px; color: var(--err); font-family: var(--mono); font-size: 12.5px; }
+  ul.errors li { margin-bottom: 3px; }
+
+  .sources { color: var(--muted); font-size: 12.5px; font-family: var(--mono); margin-bottom: 12px; }
+
+  .result { margin-bottom: 18px; }
+  .result .cap { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line);
+    white-space: nowrap; max-width: 460px; overflow: hidden; text-overflow: ellipsis;
+  }
+  th { background: var(--panel-2); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  td.seq, td.num { font-family: var(--mono); }
+  td.num { text-align: right; }
+  tbody tr:hover td { background: #1b2130; }
+  .count { font-family: var(--mono); font-size: 18px; }
+
+  pre.ast {
+    margin: 0; padding: 11px; background: #0c0f15; border: 1px solid var(--line);
+    border-radius: 6px; font: 12.5px/1.55 var(--mono); overflow-x: auto; color: #c6d0e0;
+  }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+
+  dl.ref { margin: 0; font-size: 12.5px; }
+  dl.ref dt { font-family: var(--mono); color: var(--accent); margin-top: 8px; }
+  dl.ref dd { margin: 2px 0 0; color: var(--muted); }
+  dl.ref dt:first-child { margin-top: 0; }
+
+  /* Layout helpers live here rather than in style="" attributes, so the server
+     can send a strict `default-src 'self'` policy with no 'unsafe-inline'. */
+  .mt { margin-top: 16px; }
+  p.hint.note { margin: 12px 0 0; }

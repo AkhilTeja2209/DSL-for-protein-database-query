@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProteinDSL</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<header>
+  <h1>ProteinDSL</h1>
+  <span class="sub">a query language for protein records &mdash; local CSV or live UniProt</span>
+</header>
+
+<main>
+  <div>
+    <section class="panel">
+      <h2>Program</h2>
+      <div class="body">
+        <textarea id="src" spellcheck="false"></textarea>
+        <div class="row">
+          <button class="run" id="run">Run</button>
+          <span class="hint">Ctrl+Enter</span>
+        </div>
+        <div class="examples" id="examples"></div>
+      </div>
+    </section>
+
+    <section class="panel mt">
+      <h2>Language reference</h2>
+      <div class="body">
+        <dl class="ref">
+          <dt>LOAD "dataset/proteins.csv"</dt>
+          <dd>Read the bundled CSV. File access is confined to <code>dataset/</code>.</dd>
+          <dt>LOAD UNIPROT "&lt;query&gt;" [TOP n]</dt>
+          <dd>Live UniProt REST search, e.g. <code>insulin AND organism_id:9606</code>. Up to 500; responses are cached.</dd>
+          <dt>FIND proteins</dt>
+          <dd>Query the loaded records. Every clause below is optional.</dd>
+          <dt>SEARCH "text"</dt>
+          <dd>Case-insensitive substring scan over every attribute, sequences included.</dd>
+          <dt>WHERE a = "x" AND len &gt; 300 OR ...</dt>
+          <dd>AND binds tighter than OR. Operators: <code>= != &gt; &lt; &gt;= &lt;=</code>; ordering ones only on <code>length</code>.</dd>
+          <dt>SORT BY &lt;field&gt; [ASC|DESC]</dt>
+          <dd>Ordering. Numeric for <code>length</code>, case-insensitive text otherwise.</dd>
+          <dt>TOP n</dt>
+          <dd>Keep only the first n results.</dd>
+          <dt>DISPLAY &lt;fields&gt; | COUNT</dt>
+          <dd>Choose columns, or report the number of matches. Default is all columns.</dd>
+        </dl>
+        <p class="hint note">
+          Attributes: proteinid, name, organism, length, function, sequence.
+          Note <code>=</code> on text is an exact (case-insensitive) match &mdash;
+          use SEARCH for partial text.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="panel">
+      <h2>Output</h2>
+      <div class="body">
+        <p class="status" id="status">Ready.</p>
+        <div id="out"></div>
+      </div>
+    </section>
+
+    <section class="panel mt">
+      <h2>Abstract syntax tree</h2>
+      <div class="body"><pre class="ast" id="ast">&mdash;</pre></div>
+    </section>
+  </div>
+</main>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
