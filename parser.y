@@ -253,6 +253,12 @@ id_list:
 
 %%
 
+// Bison calls this on a parse error. The message is recorded as well as
+// printed, so that --json (and therefore the web playground) reports the line
+// number and reason instead of a bare "Parsing failed."
 void yyerror(const char* msg) {
-    fprintf(stderr, "Syntax Error at line %d: %s\n", yylineno, msg);
+    const std::string text = "Syntax Error at line " + std::to_string(yylineno) +
+                             ": " + msg;
+    g_parseErrors.push_back(text);
+    fprintf(stderr, "%s\n", text.c_str());
 }
