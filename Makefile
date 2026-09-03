@@ -7,7 +7,8 @@
 # See README "Tech Stack" and "Deploying to GitHub Pages".
 
 CXX      := g++
-# python3 on CI, python on a typical Windows install; override as needed.
+# Used by `make wasm` and `make serve`. Emscripten itself is written in Python,
+# so the browser build already depends on it. python3 on CI, python on Windows.
 PYTHON   ?= python
 CXXFLAGS := -std=c++17 -Wall -Wextra -I.
 BUILD    := build
@@ -59,8 +60,10 @@ run-valid: $(BIN)
 run-invalid: $(BIN)
 	-./$(BIN) sample_queries/invalid_query.dsl
 
-serve: $(BIN)
-	$(PYTHON) server/app.py
+# docs/ is a plain static directory -- any web server will do; this is just
+# the one that needs no installing.
+serve: wasm
+	$(PYTHON) -m http.server -d $(DOCS) 8080
 
 # --------------------------------------------------------------------------
 # WebAssembly build -> docs/, which GitHub Pages serves directly.
@@ -85,9 +88,9 @@ EMFLAGS := -std=c++17 -O2 -I. -I$(BUILD) \
 wasm: $(GENERATED)
 	mkdir -p $(DOCS)
 	$(EMCC) $(EMFLAGS) $(WASM_SRCS) -o $(DOCS)/proteindsl.js
-	cp web/app.css web/app.js $(DOCS)/
-	$(PYTHON) tools/build_pages.py
-	@echo "docs/ is ready -- serve it with: python -m http.server -d docs 8080"
+	cp web/index.html web/app.css web/app.js $(DOCS)/
+	$(PYTHON) tools/make_examples.py $(DOCS)/examples.json
+	@echo "docs/ is ready -- serve it with: make serve"
 
 clean:
 	rm -rf $(BUILD) bin

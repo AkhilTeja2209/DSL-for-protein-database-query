@@ -63,13 +63,14 @@ DISPLAY proteinid name organism length
 | Data sources                  | CSV (`dataset/proteins.csv`), UniProt REST API |
 | HTTP client                   | `curl` natively, `fetch()` in the browser     |
 | Browser build                 | Emscripten (`em++`) → WebAssembly + ASYNCIFY  |
-| Web playground                | Python 3 standard library only                |
-| Build                         | GNU Make + g++ (+ `emcc` for `make wasm`)     |
+| Web playground                | Static HTML/CSS/JS over the wasm module       |
+| Build                         | GNU Make + g++ (+ `em++` for `make wasm`)     |
 | Target environment            | Linux / WSL / Windows / any modern browser    |
 
 The executor shells out to `curl` rather than linking libcurl, so the
 compiler itself has no third-party dependencies and builds anywhere flex,
-bison and a C++17 compiler are present.
+bison and a C++17 compiler are present. `make wasm` additionally needs
+Python, because Emscripten is written in Python; `make` alone does not.
 
 ## Language Reference
 
@@ -126,12 +127,9 @@ ProteinDSL/
 │   ├── uniprot_query.dsl   Live UniProt search
 │   └── invalid_query.dsl   Demonstrates semantic error reporting
 │
-├── web/                  The page: index.html, app.css, app.js (one source,
-│                         used by both the local server and the Pages build)
-├── server/
-│   └── app.py            Local playground (Python stdlib only)
+├── web/                  The page: index.html, app.css, app.js
 ├── tools/
-│   └── build_pages.py    Assembles docs/ from web/ + sample_queries/
+│   └── make_examples.py  Generates examples.json from sample_queries/
 └── docs/                 Built by `make wasm`; gitignored, published by CI
 ```
 
@@ -173,8 +171,6 @@ bin/proteindsl [options] <path-to-.dsl-file | ->
 | Option | Effect |
 |--------|--------|
 | `--json` | Emit one JSON document (AST, errors, results) instead of the phase report. |
-| `--dataset-root <dir>` | Confine file `LOAD`s to `<dir>`. |
-| `--no-network` | Refuse `LOAD UNIPROT`. |
 | `--cache-dir <dir>` | Where fetched UniProt responses are kept (default `.cache/`). |
 
 A path of `-` reads the program from stdin.
@@ -224,45 +220,27 @@ Semantic analysis failed; stopping before execution.
 
 ## Web Playground
 
-The same page ([`web/`](web)) runs against either backend, and `app.js` picks
-whichever is present:
+The page ([`web/`](web)) is static: a textarea for the program, the sample
+queries as one-click examples, the results as tables, and the parsed AST
+alongside them. `Ctrl+Enter` runs.
 
-| | Backend | Where |
-|---|---|---|
-| **Local** | `server/app.py` runs the native binary | `http://127.0.0.1:8000` |
-| **Pages** | the WebAssembly module runs in the tab | the live link above |
+There is no backend. `make wasm` builds the compiler to WebAssembly next to
+the page, and `app.js` calls straight into it — so every phase runs in the
+tab, and nothing is sent anywhere. `docs/` is an ordinary static directory,
+which is both why GitHub Pages can host it and why any web server will do
+locally:
 
 ```bash
-make                       # the server runs the compiled binary
-python server/app.py       # http://127.0.0.1:8000  (or: make serve)
+make serve                             # builds, then serves on :8080
+python -m http.server -d docs 8080     # or serve docs/ however you like
 ```
-
-A textarea for the program, the sample queries as one-click examples, the
-results as tables, and the parsed AST alongside them. `Ctrl+Enter` runs.
-
-The server contains no query logic — it pipes the submitted program into
-`bin/proteindsl -` with `--json` and renders what comes back.
-
-### On running submitted programs
-
-A submitted program is arbitrary input, so the server runs the binary with
-`--dataset-root dataset`, which rejects any `LOAD` resolving outside that
-directory, under a 90-second timeout and an 8 KB program limit. It binds to
-`127.0.0.1` by default. `LOAD UNIPROT` stays enabled because the executor
-builds the UniProt URL itself and percent-encodes the query, so a query
-string cannot become shell syntax or reach another host.
-
-That is enough for local use. It is **not** an audited sandbox — don't put
-this on a public address without putting it in a container first. The
-GitHub Pages build sidesteps the question entirely: there is no server, and
-each visitor's browser only ever runs their own program in their own tab.
 
 ## Deploying to GitHub Pages
 
-GitHub Pages serves static files, so the Python server cannot run there.
-Instead the compiler itself is built to WebAssembly and the whole pipeline
-runs client-side — the same approach `onnxruntime-web` uses to run a model
-in a browser.
+GitHub Pages serves static files, so a compiler normally could not run
+there. Building it to WebAssembly removes the problem: the pipeline runs
+client-side, the same approach `onnxruntime-web` uses to run a model in a
+browser.
 
 ```bash
 # One-time: install Emscripten
@@ -272,7 +250,6 @@ git clone https://github.com/emscripten-core/emsdk && cd emsdk
 
 ```bash
 make wasm      # -> docs/  (~370 KB of wasm)
-python -m http.server -d docs 8080     # check it locally first
 ```
 
 Deployment is automatic:
@@ -307,9 +284,9 @@ Implemented and tested end to end:
 - **Execution** — CSV and live UniProt loading, `SEARCH`, `WHERE` with
   `AND`/`OR`, `SORT BY` with direction, `TOP`, `COUNT`, and `DISPLAY`
   column selection, rendered as an aligned table or as JSON.
-- **Web playground** — runs all of the above in a browser, either against the
-  local server or entirely client-side as WebAssembly. Both paths were checked
-  to return identical results for the same programs.
+- **Web playground** — runs all of the above in a browser as WebAssembly,
+  verified to return the same results as the native binary for the same
+  programs.
 
 Known limits:
 

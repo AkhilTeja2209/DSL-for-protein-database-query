@@ -136,7 +136,7 @@ PipelineOutput runPipeline(const ExecOptions& opts,
                     *report << "  [executor] Reading dataset: " << stmt.loadFile << "\n";
                 }
                 label = stmt.loadFile;
-                loaded = loadDataset(stmt.loadFile, opts, records, loadError);
+                loaded = loadDataset(stmt.loadFile, records, loadError);
             }
 
             if (!loaded) {

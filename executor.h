@@ -33,19 +33,15 @@ struct QueryResult {
     size_t                                returned = 0;  // rows left after TOP
 };
 
-// Constraints applied to a whole program. The web server passes a dataset root
-// so that a user-submitted program cannot read arbitrary files off the host.
+// Settings for a whole program run.
 struct ExecOptions {
-    std::string datasetRoot;          // empty => file LOAD is unrestricted
-    bool        allowNetwork = true;  // false => LOAD UNIPROT is refused
     std::string cacheDir = ".cache";  // where fetched UniProt TSVs are kept
 };
 
 // Reads a protein CSV (header: ProteinID,Name,Organism,Length,Function,Sequence)
-// into memory. Returns false and fills `error` if the file can't be read, is
-// outside `opts.datasetRoot`, or has a malformed row.
+// into memory. Returns false and fills `error` if the file can't be read or has
+// a malformed row.
 bool loadDataset(const std::string& path,
-                 const ExecOptions& opts,
                  std::vector<ProteinRecord>& records,
                  std::string& error);
 

@@ -4,8 +4,8 @@
 //
 // This is the browser's equivalent of main.cpp: it points the Flex lexer at a
 // JavaScript string instead of a FILE*, runs the same pipeline.cpp phases the
-// native CLI runs, and returns the same JSON document server/app.py would have
-// produced. That is what lets the whole compiler run on GitHub Pages with no
+// native CLI runs, and returns the same JSON document `proteindsl --json`
+// prints. That is what lets the whole compiler run on GitHub Pages with no
 // backend at all.
 //
 // The call is asynchronous from JavaScript's side because LOAD UNIPROT awaits
@@ -34,12 +34,10 @@ EMSCRIPTEN_KEEPALIVE
 const char* proteindsl_run_json(const char* source) {
     static std::string output;
 
+    // The only files that exist here are the ones preloaded into the virtual
+    // filesystem (dataset/); LOAD UNIPROT caches in memory rather than on disk,
+    // so no cache directory is used either.
     ExecOptions opts;
-    // In the browser the only files that exist are the ones preloaded into the
-    // virtual filesystem (dataset/), so there is nothing for a file LOAD to
-    // escape to and no dataset root to enforce.
-    opts.datasetRoot.clear();
-    opts.allowNetwork = true;
 
     resetPipelineState();
 

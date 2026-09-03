@@ -10,12 +10,9 @@
 // Usage: bin/proteindsl [options] <path-to-.dsl-file | ->
 //
 //   --json                 emit one JSON document instead of the phase report
-//   --dataset-root <dir>   confine file LOADs to <dir> (used by the web server)
-//   --no-network           refuse LOAD UNIPROT
 //   --cache-dir <dir>      where fetched UniProt responses are kept
 //
-// A path of "-" reads the program from stdin, which is how server/app.py
-// hands user-submitted programs to the binary without touching the disk.
+// A path of "-" reads the program from stdin.
 // -----------------------------------------------------------------------
 #include <cstdio>
 #include <iostream>
@@ -39,8 +36,6 @@ void usage(const char* argv0) {
         << "Usage: " << argv0 << " [options] <path-to-.dsl-file | ->\n"
         << "\n"
         << "  --json                 emit one JSON document instead of the phase report\n"
-        << "  --dataset-root <dir>   confine file LOADs to <dir>\n"
-        << "  --no-network           refuse LOAD UNIPROT\n"
         << "  --cache-dir <dir>      where fetched UniProt responses are kept\n";
 }
 
@@ -49,11 +44,6 @@ bool parseArgs(int argc, char** argv, Options& opts) {
         const std::string arg = argv[i];
         if (arg == "--json") {
             opts.json = true;
-        } else if (arg == "--no-network") {
-            opts.exec.allowNetwork = false;
-        } else if (arg == "--dataset-root") {
-            if (i + 1 >= argc) return false;
-            opts.exec.datasetRoot = argv[++i];
         } else if (arg == "--cache-dir") {
             if (i + 1 >= argc) return false;
             opts.exec.cacheDir = argv[++i];

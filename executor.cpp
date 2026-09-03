@@ -287,34 +287,9 @@ std::string jsonEscape(const std::string& s) {
 }
 
 bool loadDataset(const std::string& path,
-                 const ExecOptions& opts,
                  std::vector<ProteinRecord>& records,
                  std::string& error) {
-    std::string resolved = path;
-
-    // With a dataset root configured, a file LOAD may only reach inside it.
-    // That is what makes it safe to run a stranger's program from the web UI.
-    if (!opts.datasetRoot.empty()) {
-        std::error_code ec;
-        const fs::path root = fs::weakly_canonical(fs::absolute(opts.datasetRoot), ec);
-        const fs::path want = fs::weakly_canonical(fs::absolute(path), ec);
-        if (ec) {
-            error = "Runtime Error: could not resolve dataset path '" + path + "'";
-            return false;
-        }
-        // An empty relative path means the two are unrelated; a leading ".."
-        // means the target climbs out of the root. Compared component-wise so
-        // this works with Windows' wide-character paths too.
-        const fs::path rel = want.lexically_relative(root);
-        if (rel.empty() || *rel.begin() == "..") {
-            error = "Runtime Error: LOAD \"" + path + "\" is outside the permitted "
-                    "dataset directory '" + opts.datasetRoot + "'";
-            return false;
-        }
-        resolved = want.string();
-    }
-
-    std::ifstream in(resolved);
+    std::ifstream in(path);
     if (!in.is_open()) {
         error = "Runtime Error: could not open dataset file '" + path + "'";
         return false;
@@ -368,11 +343,6 @@ bool loadUniProt(const std::string& query,
                  std::vector<ProteinRecord>& records,
                  std::string& sourceLabel,
                  std::string& error) {
-    if (!opts.allowNetwork) {
-        error = "Runtime Error: LOAD UNIPROT is disabled in this environment";
-        return false;
-    }
-
     const std::string url = buildUniProtUrl(query, limit);
 
 #ifdef __EMSCRIPTEN__
@@ -380,6 +350,7 @@ bool loadUniProt(const std::string& query,
     // the page's own fetch() and the response is cached in memory for the life
     // of the tab. UniProt sends Access-Control-Allow-Origin: *, so this works
     // from any origin without a proxy.
+    (void)opts;  // there is no cache directory in the browser
     static std::map<std::string, std::string> memCache;
 
     auto it = memCache.find(url);
