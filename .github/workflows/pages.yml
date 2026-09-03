@@ -1,0 +1,90 @@
+name: Deploy playground to GitHub Pages
+
+# Builds the WebAssembly playground from source on every push to main, so the
+# compiled artefacts never have to live in the repository. `make wasm` here is
+# the same target used locally.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.l'
+      - '**.y'
+      - 'Makefile'
+      - 'dataset/**'
+      - 'sample_queries/**'
+      - 'web/**'
+      - 'tools/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a run finish rather than cancelling it mid-deploy, but never run two.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+# Pinned to the toolchain the build was verified against.
+env:
+  EMSDK_VERSION: 6.0.9
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flex and bison
+        run: sudo apt-get update && sudo apt-get install -y flex bison
+
+      # ~650 MB of toolchain, so it is cached on the pinned version.
+      - name: Cache Emscripten
+        id: cache-emsdk
+        uses: actions/cache@v4
+        with:
+          path: emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      - name: Install Emscripten
+        if: steps.cache-emsdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install "$EMSDK_VERSION"
+          ./emsdk activate "$EMSDK_VERSION"
+
+      - name: Build docs/
+        run: |
+          source ./emsdk/emsdk_env.sh
+          make wasm PYTHON=python3
+          test -s docs/proteindsl.wasm
+          test -s docs/index.html
+          test -s docs/examples.json
+
+      # Confirms the native build still compiles from the same sources, and
+      # that the sample the README documents still produces its documented rows.
+      - name: Check the native build
+        run: |
+          make
+          ./bin/proteindsl sample_queries/valid_query.dsl | grep -q "Hemoglobin"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

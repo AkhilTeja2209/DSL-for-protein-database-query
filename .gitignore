@@ -5,6 +5,10 @@ bin/
 # Cached UniProt REST responses (executor.cpp)
 .cache/
 
+# The GitHub Pages site, built from source by `make wasm`. The Actions
+# workflow rebuilds it on every push, so the artefacts stay out of git.
+docs/
+
 # Flex / Bison generated sources, if generated in-tree
 lexer.yy.c
 lexer.yy.cpp

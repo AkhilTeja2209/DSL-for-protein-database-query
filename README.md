@@ -132,7 +132,7 @@ ProteinDSL/
 │   └── app.py            Local playground (Python stdlib only)
 ├── tools/
 │   └── build_pages.py    Assembles docs/ from web/ + sample_queries/
-└── docs/                 Built by `make wasm`; what GitHub Pages serves
+└── docs/                 Built by `make wasm`; gitignored, published by CI
 ```
 
 `main.cpp` and `wasm_api.cpp` are two front ends onto the same
@@ -275,8 +275,12 @@ make wasm      # -> docs/  (~370 KB of wasm)
 python -m http.server -d docs 8080     # check it locally first
 ```
 
-Then point Pages at **branch `main`, folder `/docs`**. `docs/` is committed
-because deploy-from-branch has nothing to build with.
+Deployment is automatic:
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs that same
+`make wasm` on every push to `main` and publishes the result, so `docs/` is
+gitignored and no build artefact is ever committed. The workflow pins the
+Emscripten version, caches the toolchain, and also compiles the native build
+as a check that both front ends still build from the same sources.
 
 How the browser build differs, all of it inside `#ifdef __EMSCRIPTEN__`:
 

@@ -7,6 +7,8 @@
 # See README "Tech Stack" and "Deploying to GitHub Pages".
 
 CXX      := g++
+# python3 on CI, python on a typical Windows install; override as needed.
+PYTHON   ?= python
 CXXFLAGS := -std=c++17 -Wall -Wextra -I.
 BUILD    := build
 BIN      := bin/proteindsl
@@ -58,7 +60,7 @@ run-invalid: $(BIN)
 	-./$(BIN) sample_queries/invalid_query.dsl
 
 serve: $(BIN)
-	python server/app.py
+	$(PYTHON) server/app.py
 
 # --------------------------------------------------------------------------
 # WebAssembly build -> docs/, which GitHub Pages serves directly.
@@ -84,7 +86,7 @@ wasm: $(GENERATED)
 	mkdir -p $(DOCS)
 	$(EMCC) $(EMFLAGS) $(WASM_SRCS) -o $(DOCS)/proteindsl.js
 	cp web/app.css web/app.js $(DOCS)/
-	python tools/build_pages.py
+	$(PYTHON) tools/build_pages.py
 	@echo "docs/ is ready -- serve it with: python -m http.server -d docs 8080"
 
 clean:
