@@ -1,16 +1,25 @@
 # Makefile
-# Builds bin/proteindsl from the Flex lexer, Bison parser and C++ sources.
-# Requires: flex, bison, g++ (C++17). See README "Tech Stack".
+# Two builds from one set of sources:
+#
+#   make        -> bin/proteindsl, the native CLI.  Needs flex, bison, g++ (C++17).
+#   make wasm   -> docs/, the GitHub Pages site.    Needs the above plus emcc.
+#
+# See README "Tech Stack" and "Deploying to GitHub Pages".
 
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -I.
 BUILD    := build
 BIN      := bin/proteindsl
 
-SRCS     := ast.cpp semantic.cpp executor.cpp main.cpp
+# Everything except the front end; main.cpp and wasm_api.cpp are the two
+# alternative entry points onto the same pipeline.
+CORE     := ast.cpp semantic.cpp executor.cpp pipeline.cpp
+SRCS     := $(CORE) main.cpp
 OBJS     := $(SRCS:%.cpp=$(BUILD)/%.o) $(BUILD)/lexer.yy.o $(BUILD)/parser.tab.o
 
-.PHONY: all clean run-valid run-invalid
+GENERATED := $(BUILD)/parser.tab.cpp $(BUILD)/lexer.yy.cpp
+
+.PHONY: all clean clean-wasm run-valid run-invalid wasm serve
 
 all: $(BIN)
 
@@ -48,5 +57,38 @@ run-valid: $(BIN)
 run-invalid: $(BIN)
 	-./$(BIN) sample_queries/invalid_query.dsl
 
+serve: $(BIN)
+	python server/app.py
+
+# --------------------------------------------------------------------------
+# WebAssembly build -> docs/, which GitHub Pages serves directly.
+#
+# ASYNCIFY is what lets LOAD UNIPROT await a browser fetch from inside the
+# executor without restructuring it (see js_fetch_text in executor.cpp).
+# --preload-file puts dataset/proteins.csv in the virtual filesystem, so
+# LOAD "dataset/proteins.csv" works in the browser exactly as it does natively.
+# --------------------------------------------------------------------------
+EMCC     := em++
+DOCS     := docs
+WASM_SRCS := $(CORE) wasm_api.cpp $(GENERATED)
+
+EMFLAGS := -std=c++17 -O2 -I. -I$(BUILD) \
+	-sASYNCIFY \
+	-sMODULARIZE -sEXPORT_NAME=createProteinDSL \
+	-sALLOW_MEMORY_GROWTH \
+	-sEXPORTED_FUNCTIONS=_proteindsl_run_json,_malloc,_free \
+	-sEXPORTED_RUNTIME_METHODS=ccall,UTF8ToString,stringToNewUTF8 \
+	--preload-file dataset
+
+wasm: $(GENERATED)
+	mkdir -p $(DOCS)
+	$(EMCC) $(EMFLAGS) $(WASM_SRCS) -o $(DOCS)/proteindsl.js
+	cp web/app.css web/app.js $(DOCS)/
+	python tools/build_pages.py
+	@echo "docs/ is ready -- serve it with: python -m http.server -d docs 8080"
+
 clean:
 	rm -rf $(BUILD) bin
+
+clean-wasm:
+	rm -rf $(DOCS)

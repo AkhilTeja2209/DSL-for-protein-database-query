@@ -9,8 +9,30 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <istream>
+#include <map>
 #include <ostream>
 #include <sstream>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+// The browser build has no curl and no sockets, so LOAD UNIPROT is served by
+// the page's own fetch(). ASYNCIFY (see the `wasm` target in the Makefile)
+// suspends the wasm stack across the await, which is what lets the executor
+// keep its ordinary synchronous shape.
+//
+// Returns a malloc'd UTF-8 string the caller frees, or 0 on any failure.
+EM_ASYNC_JS(char*, js_fetch_text, (const char* url), {
+    try {
+        const response = await fetch(UTF8ToString(url));
+        if (!response.ok) return 0;
+        return stringToNewUTF8(await response.text());
+    } catch (e) {
+        return 0;
+    }
+});
+#endif
 
 namespace fs = std::filesystem;
 
@@ -153,7 +175,9 @@ std::string urlEncode(const std::string& s) {
     return out;
 }
 
-// FNV-1a, used only to give each distinct query a stable cache filename.
+#ifndef __EMSCRIPTEN__
+// FNV-1a, used only to give each distinct query a stable cache filename. The
+// browser build caches by URL in memory instead, so it needs no filename.
 std::string hashHex(const std::string& s) {
     unsigned long long h = 1469598103934665603ULL;
     for (unsigned char c : s) {
@@ -164,6 +188,7 @@ std::string hashHex(const std::string& s) {
     os << std::hex << std::setw(16) << std::setfill('0') << h;
     return os.str();
 }
+#endif
 
 // UniProt annotates function text with a leading "FUNCTION: " and evidence tags
 // like {ECO:0000269|PubMed:...}. Both are metadata rather than content, so they
@@ -193,16 +218,11 @@ std::string cleanFunction(const std::string& raw) {
     return trim(collapsed);
 }
 
-bool parseUniProtTsv(const std::string& path,
-                     std::vector<ProteinRecord>& records,
-                     std::string& error) {
-    std::ifstream in(path);
-    if (!in.is_open()) {
-        error = "Runtime Error: could not read the UniProt response cached at '" +
-                path + "'";
-        return false;
-    }
-
+// Parses UniProt's TSV from any stream: a cached file on the native build, an
+// in-memory string in the browser build.
+bool parseUniProtStream(std::istream& in,
+                        std::vector<ProteinRecord>& records,
+                        std::string& error) {
     std::string line;
     bool isHeader = true;
     while (std::getline(in, line)) {
@@ -230,6 +250,14 @@ bool parseUniProtTsv(const std::string& path,
         return false;
     }
     return true;
+}
+
+std::string buildUniProtUrl(const std::string& query, long limit) {
+    return "https://rest.uniprot.org/uniprotkb/search"
+           "?query=" + urlEncode(query) +
+           "&fields=accession,protein_name,organism_name,length,cc_function,sequence"
+           "&format=tsv"
+           "&size=" + std::to_string(limit);
 }
 
 } // namespace
@@ -345,13 +373,39 @@ bool loadUniProt(const std::string& query,
         return false;
     }
 
-    const std::string url =
-        "https://rest.uniprot.org/uniprotkb/search"
-        "?query=" + urlEncode(query) +
-        "&fields=accession,protein_name,organism_name,length,cc_function,sequence"
-        "&format=tsv"
-        "&size=" + std::to_string(limit);
+    const std::string url = buildUniProtUrl(query, limit);
 
+#ifdef __EMSCRIPTEN__
+    // Browser build: there is no curl and no disk, so the fetch is handed to
+    // the page's own fetch() and the response is cached in memory for the life
+    // of the tab. UniProt sends Access-Control-Allow-Origin: *, so this works
+    // from any origin without a proxy.
+    static std::map<std::string, std::string> memCache;
+
+    auto it = memCache.find(url);
+    if (it != memCache.end()) {
+        sourceLabel = "UniProt \"" + query + "\" (cached)";
+        std::istringstream in(it->second);
+        return parseUniProtStream(in, records, error);
+    }
+
+    char* raw = js_fetch_text(url.c_str());
+    if (!raw) {
+        error = "Runtime Error: the UniProt request failed. Check your network "
+                "connection and the query syntax.";
+        return false;
+    }
+    const std::string body(raw);
+    std::free(raw);
+
+    std::istringstream in(body);
+    if (!parseUniProtStream(in, records, error)) return false;
+
+    memCache[url] = body;  // only successful responses are remembered
+    sourceLabel = "UniProt \"" + query + "\" (fetched, limit " +
+                  std::to_string(limit) + ")";
+    return true;
+#else
     std::error_code ec;
     fs::create_directories(opts.cacheDir, ec);
     const std::string cachePath = opts.cacheDir + "/uniprot-" + hashHex(url) + ".tsv";
@@ -360,7 +414,13 @@ bool loadUniProt(const std::string& query,
     // than kept, so a query is never permanently stuck on an empty result.
     auto parseOrDropCache = [&](const std::string& label) {
         sourceLabel = label;
-        if (parseUniProtTsv(cachePath, records, error)) return true;
+        std::ifstream in(cachePath);
+        if (in.is_open() && parseUniProtStream(in, records, error)) return true;
+        if (!in.is_open()) {
+            error = "Runtime Error: could not read the UniProt response cached at '" +
+                    cachePath + "'";
+        }
+        in.close();
         std::error_code rm;
         fs::remove(cachePath, rm);
         return false;
@@ -395,6 +455,7 @@ bool loadUniProt(const std::string& query,
 
     return parseOrDropCache("UniProt \"" + query + "\" (fetched, limit " +
                             std::to_string(limit) + ")");
+#endif
 }
 
 bool runQuery(const Statement& stmt,

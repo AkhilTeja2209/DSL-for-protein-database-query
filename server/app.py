@@ -22,7 +22,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# The page is shared with the WebAssembly build: `make wasm` copies web/ into
+# docs/ and adds the wasm loader, so the same HTML/CSS/JS serves both the local
+# server and GitHub Pages. app.js picks whichever backend is present.
+STATIC_DIR = REPO_ROOT / "web"
 
 # A submitted program is arbitrary text from whoever can reach the page, so the
 # binary is run with its file access confined to dataset/ and with a hard time

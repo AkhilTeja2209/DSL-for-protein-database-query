@@ -13,6 +13,46 @@ DISPLAY proteinid name organism length
 
 srcEl.value = DEFAULT_PROGRAM;
 
+// --- backend -----------------------------------------------------------
+// Two ways to run a program, from the same page:
+//
+//   wasm   - `make wasm` emits proteindsl.js next to this file and index.html
+//            loads it, so the compiler runs in this tab. No server involved;
+//            this is what GitHub Pages serves.
+//   server - server/app.py is running and executes the native binary.
+//
+// createProteinDSL only exists when the wasm loader was included, so its
+// presence is what selects the backend.
+const HAS_WASM = typeof createProteinDSL !== "undefined";
+let wasmModule = HAS_WASM ? createProteinDSL() : null;
+
+async function execute(source) {
+  if (HAS_WASM) {
+    const mod = await wasmModule;
+    // Asynchronous because LOAD UNIPROT awaits a fetch inside the module.
+    const json = await mod.ccall(
+      "proteindsl_run_json", "string", ["string"], [source], { async: true });
+    return JSON.parse(json);
+  }
+  const resp = await fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  return resp.json();
+}
+
+async function loadExamples() {
+  if (HAS_WASM) {
+    // Pages has no /api, so the examples ship as a static file that
+    // `make wasm` generates from sample_queries/.
+    const resp = await fetch("examples.json");
+    return (await resp.json()).examples || [];
+  }
+  const resp = await fetch("/api/examples");
+  return (await resp.json()).examples || [];
+}
+
 function setStatus(text, kind) {
   statusEl.textContent = text;
   statusEl.className = "status" + (kind ? " " + kind : "");
@@ -115,17 +155,14 @@ function render(data) {
 
 async function run() {
   runEl.disabled = true;
-  setStatus("Running… (a first UniProt fetch can take a few seconds)", "busy");
+  setStatus(HAS_WASM
+    ? "Running… (the compiler loads once, then a UniProt fetch can take a few seconds)"
+    : "Running… (a first UniProt fetch can take a few seconds)", "busy");
   try {
-    const resp = await fetch("/api/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: srcEl.value }),
-    });
-    render(await resp.json());
+    render(await execute(srcEl.value));
   } catch (err) {
     outEl.replaceChildren();
-    setStatus("Could not reach the server: " + err.message, "err");
+    setStatus("Could not run the program: " + err.message, "err");
   } finally {
     runEl.disabled = false;
   }
@@ -136,11 +173,10 @@ srcEl.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); }
 });
 
-fetch("/api/examples")
-  .then((r) => r.json())
-  .then((data) => {
+loadExamples()
+  .then((examples) => {
     const box = $("examples");
-    for (const ex of data.examples || []) {
+    for (const ex of examples) {
       const b = document.createElement("button");
       b.textContent = ex.name;
       b.addEventListener("click", () => { srcEl.value = ex.source; srcEl.focus(); });
@@ -148,3 +184,7 @@ fetch("/api/examples")
     }
   })
   .catch(() => {});
+
+setStatus(HAS_WASM
+  ? "Ready — the compiler runs in your browser; nothing is sent to a server."
+  : "Ready.");
