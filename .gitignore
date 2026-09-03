@@ -2,6 +2,9 @@
 build/
 bin/
 
+# Cached UniProt REST responses (executor.cpp)
+.cache/
+
 # Flex / Bison generated sources, if generated in-tree
 lexer.yy.c
 lexer.yy.cpp

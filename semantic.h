@@ -1,15 +1,11 @@
 // semantic.h
 // -----------------------------------------------------------------------
-// Phase 3: Semantic Analysis (see project plan, slide 11).
+// Phase 3: Semantic Analysis.
 //
-// Validates that fields referenced in WHERE / DISPLAY are real protein
-// attributes and that comparison operators are used with the right type
-// (e.g. `>` only makes sense on the numeric Length attribute).
-//
-// Status: implemented for the attribute/type checks shown on slide 11 and
-// slide 14 ("Unknown protein attribute", "Cannot compare string attribute
-// with numeric operator"). Cross-statement checks (e.g. FIND without a
-// prior LOAD) are not yet implemented -- see README "Current Status".
+// Validates that fields referenced in SEARCH / WHERE / SORT BY / DISPLAY are
+// real protein attributes, that comparison operators are used with the right
+// type (e.g. `>` only makes sense on the numeric `length` attribute), that
+// TOP is a positive integer, and that a FIND is preceded by a LOAD.
 // -----------------------------------------------------------------------
 #pragma once
 
@@ -17,8 +13,19 @@
 #include <vector>
 #include "ast.h"
 
-// Runs semantic checks over every FIND statement in `program`.
-// Returns true if no semantic errors were found; otherwise `errors` is
-// filled with one human-readable message per problem (mirrors the
-// "Error: ..." examples on slide 14).
+// Canonical protein attribute names, lower-cased. Shared with the executor so
+// the two phases can never disagree about which attributes exist.
+const std::vector<std::string>& proteinFields();
+
+// Lower-cases `s`. Field names are compared case-insensitively throughout.
+std::string toLowerField(const std::string& s);
+
+// True if `fieldLower` (already lower-cased) is a protein attribute.
+bool isKnownField(const std::string& fieldLower);
+
+// True if `fieldLower` holds a number. Only `length` does.
+bool isNumericField(const std::string& fieldLower);
+
+// Runs semantic checks over `program`. Returns true if no errors were found;
+// otherwise `errors` holds one human-readable message per problem.
 bool validateProgram(const Program& program, std::vector<std::string>& errors);

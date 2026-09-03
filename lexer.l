@@ -1,12 +1,13 @@
 /* lexer.l
  * -----------------------------------------------------------------------
- * Phase 1: Lexical Analysis (see project plan, slide 9).
+ * Phase 1: Lexical Analysis.
  *
  * Recognizes ProteinDSL keywords, identifiers, string/number literals and
  * comparison operators, and hands tokens to the Bison parser (parser.y).
- * Every keyword listed in "Core Language Features" (slide 6) is tokenized
- * here, even though the parser (Phase 2) does not yet accept all of them
- * in a grammar rule -- see README "Current Status".
+ *
+ * Keywords are matched before the identifier rule, so `LOAD` lexes as the
+ * LOAD token while `loaded_at` lexes as an IDENTIFIER (flex prefers the
+ * longest match, and breaks ties by rule order).
  * ----------------------------------------------------------------------- */
 
 %{
@@ -28,6 +29,7 @@ int lex_errors = 0;
 "//".*                  { /* line comment - convenience, not in the original spec */ }
 
 "LOAD"                  { return LOAD; }
+"UNIPROT"               { return UNIPROT; }
 "FIND"                  { return FIND; }
 "WHERE"                 { return WHERE; }
 "AND"                   { return AND; }
@@ -36,6 +38,8 @@ int lex_errors = 0;
 "DISPLAY"               { return DISPLAY; }
 "SORT"                  { return SORT; }
 "BY"                    { return BY; }
+"ASC"                   { return ASC; }
+"DESC"                  { return DESC; }
 "TOP"                   { return TOP; }
 "SEARCH"                { return SEARCH; }
 
@@ -57,10 +61,12 @@ int lex_errors = 0;
 [A-Za-z_][A-Za-z0-9_]*  { yylval.strval = strdup(yytext); return IDENTIFIER; }
 
 .                        {
-                            fprintf(stderr,
-                                    "Lexical Error: unexpected character '%s' at line %d\n",
-                                    yytext, yylineno);
+                            char buf[128];
+                            snprintf(buf, sizeof(buf),
+                                     "Lexical Error: unexpected character '%s' at line %d",
+                                     yytext, yylineno);
+                            g_parseErrors.push_back(buf);
+                            fprintf(stderr, "%s\n", buf);
                             lex_errors++;
                          }
-
 %%
