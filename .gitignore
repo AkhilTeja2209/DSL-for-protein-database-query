@@ -1,0 +1,37 @@
+# Build output (see Makefile: BUILD := build, BIN := bin/proteindsl)
+build/
+bin/
+
+# Flex / Bison generated sources, if generated in-tree
+lexer.yy.c
+lexer.yy.cpp
+parser.tab.c
+parser.tab.cpp
+parser.tab.h
+parser.tab.hpp
+*.output
+
+# Compiled objects and binaries
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+
+# Debug info
+*.dSYM/
+*.pdb
+*.ilk
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini

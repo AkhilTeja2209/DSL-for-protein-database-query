@@ -41,10 +41,10 @@ $(BIN): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(BIN)
 
 run-valid: $(BIN)
-	./$(BIN) sample_queries/valid_query.dsl
+	./$(BIN) main/sample_queries/valid_query.dsl
 
 run-invalid: $(BIN)
-	./$(BIN) sample_queries/invalid_query.dsl
+	./$(BIN) main/sample_queries/invalid_query.dsl
 
 clean:
 	rm -rf $(BUILD) bin
