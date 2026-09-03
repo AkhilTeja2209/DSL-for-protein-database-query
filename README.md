@@ -32,11 +32,6 @@ DISPLAY proteinid name length function
 8. [Design decisions and limits](#8-design-decisions-and-limits)
 9. [Repository layout](#9-repository-layout)
 
-Two companion documents:
-
-- **[WALKTHROUGH.md](WALKTHROUGH.md)** — every file explained, block by block.
-- **[TEAM.md](TEAM.md)** — how the project divides across four presenters.
-
 ---
 
 ## 1. What this is
@@ -604,11 +599,8 @@ ProteinDSL/
 ├── web/                   The playground: index.html, app.css, app.js
 ├── tools/
 │   └── make_examples.py   Generates examples.json from sample_queries/
-├── .github/workflows/
-│   └── pages.yml          Builds and deploys the site
-│
-├── WALKTHROUGH.md         Every file explained, block by block
-└── TEAM.md                Four-way division for the presentation
+└── .github/workflows/
+    └── pages.yml          Builds and deploys the site
 ```
 
 `docs/` appears after `make wasm`. It is gitignored — CI rebuilds it.
