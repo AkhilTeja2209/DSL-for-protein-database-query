@@ -17,6 +17,7 @@ on:
       - 'sample_queries/**'
       - 'web/**'
       - 'tools/**'
+      - 'tests/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -68,11 +69,12 @@ jobs:
           test -s docs/examples.json
 
       # Confirms the native build still compiles from the same sources, and
-      # that the sample the README documents still produces its documented rows.
-      - name: Check the native build
+      # that every test case and sample still produces its expected output,
+      # both normally and under AddressSanitizer / UndefinedBehaviorSanitizer.
+      - name: Test the native build
         run: |
-          make
-          ./bin/proteindsl sample_queries/valid_query.dsl | grep -q "Hemoglobin"
+          make test PYTHON=python3
+          make test-asan PYTHON=python3
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

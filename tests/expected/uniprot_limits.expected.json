@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "stage": "semantic",
+  "statements": 1,
+  "ast": "Statement 1: LOAD UNIPROT\n  query: \"\"\n  limit: 501\n",
+  "errors": [
+    "Semantic Error: LOAD UNIPROT TOP must be at most 500, got 501",
+    "Semantic Error: LOAD UNIPROT requires a non-empty query string"
+  ],
+  "sources": [],
+  "results": []
+}

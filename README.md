@@ -176,6 +176,8 @@ LOAD UNIPROT "insulin AND organism_id:9606 AND reviewed:true" TOP 50
 
 `TOP n` sets how many entries to fetch — default **50**, maximum **500** (the
 API's per-page cap). Responses are cached, so re-running a query costs nothing.
+Transient failures (timeouts, HTTP 429 and 5xx) are retried twice, and a failed
+request says why it failed — see [Errors](#38-errors).
 
 #### `FIND proteins [clauses...]`
 
@@ -219,8 +221,8 @@ AND-groups, any one of which may match.
 numerically; every other attribute sorts as case-insensitive text. The sort is
 *stable*, so equal keys keep their input order.
 
-**`TOP n`** — keeps the first `n` results after sorting. `n` must be a
-positive integer.
+**`TOP n`** — keeps the first `n` results after sorting. `n` must be a whole
+number from 1 to 2147483647; `TOP 2.7` is an error, not a silent `TOP 2`.
 
 **`DISPLAY <fields>`** — chooses the output columns, in the order given.
 Without it, all six attributes are shown.
@@ -281,10 +283,14 @@ was. The process exit code identifies it:
 Lexical Error: unexpected character '@' at line 2
 ```
 
-**Syntax errors** name the line:
+**Syntax errors** name the line, the token found, and every token that could
+have come next. A lowercase keyword gets a hint, since keywords are uppercase
+only:
 
 ```
-Syntax Error at line 3: syntax error
+Syntax Error at line 2: unexpected COUNT, expecting string or number
+Syntax Error at line 2: unexpected identifier, expecting BY
+Syntax Error at line 1: unexpected identifier, expecting end of file, LOAD or FIND (keywords are uppercase: did you mean 'FIND'?)
 ```
 
 **Semantic errors** are all reported together, not just the first:
@@ -299,13 +305,24 @@ Syntax Error at line 3: syntax error
 | `Attribute 'name' expects a string value, got 500` | `name = 500` |
 | `FIND 'X' used before any LOAD; no dataset has been declared` | `FIND` with no data |
 | `TOP must be a positive integer, got 0` | `TOP 0` |
-| `LOAD UNIPROT TOP must be at most 500, got N` | Over the API cap |
+| `TOP must be a whole number, got 2.7` | A fractional `TOP` |
+| `TOP must be at most 2147483647, got N` | A `TOP` too large to be a count |
+| `LOAD UNIPROT TOP must be at most 500, got N` | Over the API cap (the whole-number rule applies here too) |
 | `LOAD UNIPROT requires a non-empty query string` | `LOAD UNIPROT ""` |
 
 **Runtime errors** cover the world outside the program: `could not open
 dataset file`, `malformed row at line N (expected 6 columns, got M)`,
 `non-numeric Length at line N`, `UniProt returned no entries for this query`,
-and a failed UniProt request.
+and a failed UniProt request. A failed request names its cause, so a blocked
+network reads differently from a bad query:
+
+| Message (after `UniProt request failed:`) | Cause |
+|------------------|-------|
+| `a proxy refused the connection to rest.uniprot.org (HTTP 403)` | A proxy or network policy does not allow the host |
+| `UniProt rejected the query (HTTP 400)` | A syntax error in the UniProt query string |
+| `UniProt is busy or unavailable (HTTP 503)` | Rate limiting or an outage, after two retries |
+| `could not resolve rest.uniprot.org` / `could not connect` / `the request timed out` | No network |
+| `curl is not installed or not on PATH` | The native build shells out to `curl` |
 
 ### 3.9 Worked examples
 
@@ -392,7 +409,7 @@ and the command line give identical answers for identical programs.
 
 ## 5. Building and running
 
-Requires `flex`, `bison`, and a C++17 compiler. `make wasm` additionally needs
+Requires `flex`, `bison` 3.6 or newer, and a C++17 compiler. `make wasm` additionally needs
 Emscripten — and therefore Python, since Emscripten is written in Python.
 Plain `make` does not.
 
@@ -400,10 +417,24 @@ Plain `make` does not.
 make                  # -> bin/proteindsl
 make run-valid        # runs sample_queries/valid_query.dsl
 make run-invalid      # runs the deliberately broken sample
+make test             # golden-file tests (needs Python; no network)
+make test-asan        # the same tests under AddressSanitizer + UBSan
 make wasm             # -> docs/, the browser build
 make serve            # builds docs/ and serves it on :8080
 make clean            # removes build/ and bin/
 ```
+
+### Tests
+
+`make test` runs every program in `tests/cases/` and `sample_queries/` with
+`--json` and compares the output with `tests/expected/<name>.expected.json`,
+including the exit code. `LOAD UNIPROT` is served from synthetic responses in
+`tests/fixtures/cache/`, so the suite needs no network and gives the same
+answer every time. After an intended change in output, regenerate the expected
+files with `python tests/run_tests.py --update` and review the diff.
+
+On Linux, where the interpreter is `python3`, run `make test PYTHON=python3`.
+CI runs both `make test` and `make test-asan`.
 
 ### Command-line interface
 
@@ -525,8 +556,9 @@ Building it to WebAssembly removes the problem — the same approach
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) runs `make wasm`
 on every push to `main` and publishes the result, so **no build artefact is
 ever committed** — `docs/` is gitignored. The workflow pins the Emscripten
-version, caches the toolchain, and also compiles the native build as a check
-that both front ends still build from the same sources.
+version, caches the toolchain, and also builds the native CLI and runs the test
+suite on it, normally and under AddressSanitizer/UBSan, so both front ends
+still build from the same sources and a regression blocks the deploy.
 
 To build the site by hand:
 
@@ -597,10 +629,16 @@ ProteinDSL/
 │   └── invalid_query.dsl    Deliberate semantic errors
 │
 ├── web/                   The playground: index.html, app.css, app.js
+├── tests/
+│   ├── run_tests.py       Golden-file test runner (make test)
+│   ├── cases/             Test programs, one behaviour each
+│   ├── expected/          The JSON each program must produce
+│   └── fixtures/          Test CSVs and synthetic UniProt responses
+├── paper/                 Research-paper report on the project
 ├── tools/
 │   └── make_examples.py   Generates examples.json from sample_queries/
 └── .github/workflows/
-    └── pages.yml          Builds and deploys the site
+    └── pages.yml          Tests, builds and deploys the site
 ```
 
 `docs/` appears after `make wasm`. It is gitignored — CI rebuilds it.

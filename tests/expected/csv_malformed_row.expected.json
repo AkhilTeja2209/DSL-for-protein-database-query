@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "runtime",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"tests/fixtures/malformed.csv\"\nStatement 2: FIND\n  entity: proteins\n  COUNT\n",
+  "errors": [
+    "Runtime Error: malformed row at line 3 in 'tests/fixtures/malformed.csv' (expected 6 columns, got 3)"
+  ],
+  "sources": [],
+  "results": []
+}

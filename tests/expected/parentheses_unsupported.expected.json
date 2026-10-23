@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "stage": "parse",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  WHERE length > 3\n  COUNT\n",
+  "errors": [
+    "Lexical Error: unexpected character '(' at line 2",
+    "Lexical Error: unexpected character ')' at line 2"
+  ],
+  "sources": [],
+  "results": []
+}

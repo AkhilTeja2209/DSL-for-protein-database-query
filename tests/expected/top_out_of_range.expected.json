@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "semantic",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  TOP 100000000000000000000\n  COUNT\n",
+  "errors": [
+    "Semantic Error: TOP must be at most 2147483647, got 100000000000000000000"
+  ],
+  "sources": [],
+  "results": []
+}

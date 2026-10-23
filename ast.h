@@ -69,6 +69,7 @@ struct Statement {
     std::string loadFile;       // LOAD "dataset/proteins.csv"
     std::string uniprotQuery;   // LOAD UNIPROT "insulin AND organism_id:9606"
     long        uniprotLimit = 50;  // LOAD UNIPROT "..." TOP <n>
+    double      uniprotLimitLiteral = 50;  // <n> as written; see topLiteral
 
     // --- FIND <entity> [SEARCH s] [WHERE c] [SORT BY f [dir]] [TOP n] [out] ---
     std::string entity;
@@ -84,6 +85,11 @@ struct Statement {
 
     bool        hasTop = false;
     long        topN = 0;
+    // The NUMBER token exactly as the lexer read it. NUMBER admits fractions
+    // and arbitrarily large values, so the parser only fills topN when the
+    // literal is a whole number that fits; semantic analysis reports the rest
+    // (`TOP 2.7`, `TOP 99999999999999999999`) from this field.
+    double      topLiteral = 0;
 
     OutputKind               output = OutputKind::DEFAULT;
     std::vector<std::string> displayFields;  // only when output == DISPLAY
@@ -106,3 +112,13 @@ extern std::vector<std::string> g_parseErrors;
 void printProgram(const Program& program, std::ostream& out);
 
 const char* compareOpToString(CompareOp op);
+
+// Largest accepted TOP. Fits a 32-bit `long`, which is what wasm32 has.
+constexpr double kMaxCount = 2147483647.0;
+
+// True if `v` is a whole number in [1, kMaxCount], i.e. a usable TOP value.
+bool isValidCount(double v);
+
+// Formats a NUMBER literal the way it was most likely written: `300` rather
+// than `300.000000`, `2.7` rather than `2.700000`.
+std::string formatNumber(double v);

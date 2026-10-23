@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "parse",
+  "statements": 0,
+  "ast": "",
+  "errors": [
+    "Syntax Error at line 1: unexpected identifier, expecting end of file, LOAD or FIND (keywords are uppercase: did you mean 'FIND'?)"
+  ],
+  "sources": [],
+  "results": []
+}

@@ -3,7 +3,9 @@
 **Author:** Akhil Teja (GitHub: `AkhilTeja2209`)
 **Project repository:** `AkhilTeja2209/DSL-for-protein-database-query`
 **Live artefact:** <https://akhilteja2209.github.io/DSL-for-protein-database-query/>
-**Document type:** Technical report on the repository at commit `a3662e0`
+**Document type:** Technical report on the repository at commit `a3662e0`.
+Sections 1–8 describe and evaluate that commit; §9 records the fixes made
+afterwards in response to the review.
 
 ---
 
@@ -45,7 +47,8 @@ documented sample programs:
 - syntax error messages are generic;
 - there is no automated test suite.
 
-We describe each one and propose a fix.
+We describe each one and propose a fix. §9 reports the fixes as made and
+re-measured.
 
 **Keywords:** domain-specific languages, compiler construction, Flex, Bison,
 LALR(1), semantic analysis, bioinformatics, UniProt, WebAssembly, Emscripten.
@@ -808,6 +811,82 @@ The evaluation confirms the documented behaviour on all samples that could be
 run in our environment, linear scaling for filtering, and acceptable interactive
 latency. It also identifies six concrete, low-risk improvements. All of them are
 local fixes that do not require architectural change.
+
+---
+
+## 9. Addendum: Fixes Applied After the Review
+
+Every defect in §6.3, the documentation inaccuracy, and the performance
+problem in §5.3 have since been fixed. Each fix was checked with the test suite
+described under D6, which also runs under AddressSanitizer and
+UndefinedBehaviorSanitizer.
+
+| ID | Fix | Verified by |
+|----|-----|-------------|
+| D1 | The AST keeps the `TOP` literal as written (`topLiteral`, `uniprotLimitLiteral`). Semantic analysis rejects fractions: `TOP must be a whole number, got 2.7`. | `top_fractional`, `uniprot_top_fractional` |
+| D2 | The parser converts a `TOP` literal to a count only when it lies in [1, 2³¹−1], so the out-of-range conversion can no longer happen. The error now reads `TOP must be at most 2147483647, got 100000000000000000000`. | `top_out_of_range` |
+| D3 | The `std::system()` result is decoded with `WEXITSTATUS` (taken as is on Windows). curl also writes the HTTP status and the proxy's CONNECT status to a side file, so each cause gets its own message (see below). | Manual run against the blocked proxy |
+| D4 | `%destructor`s for every heap-allocated semantic value. On the original code, LeakSanitizer reported 3 leaks for `FIND proteins WHERE name = "a" AND length >`; after the fix it reports none. | `make test-asan` |
+| D5 | `%define parse.error custom` with full LAC (`parse.lac full`) and a reporter that lists every expected token, plus a hint for lowercase keywords. See the examples below. | `syntax_error_*`, `lowercase_*`, `count_display_exclusive` |
+| D6 | `tests/run_tests.py` and `make test`: 37 golden-file tests (33 cases and the 4 samples), each comparing the JSON document and the exit code. `make test-asan` runs the same suite on a sanitizer build, and CI runs both before deploying. | CI |
+| Doc | The playground reference now says that in the browser only the bundled `dataset/` files exist. | n/a |
+| §5.3 | String sort keys are lower-cased once per record rather than on every comparison, and the `SEARCH` term once per query rather than once per record. | Benchmark below |
+
+D5 changes syntax errors like these:
+
+| Input | Before | After |
+|-------|--------|-------|
+| `FIND proteins WHERE length > COUNT` | `syntax error` | `unexpected COUNT, expecting string or number` |
+| `FIND proteins SORT length` | `syntax error` | `unexpected identifier, expecting BY` |
+| `FIND proteins Where length > 3` | `syntax error` | `unexpected identifier, expecting end of file, LOAD, FIND, WHERE, COUNT, DISPLAY, SORT, TOP or SEARCH (keywords are uppercase: did you mean 'WHERE'?)` |
+
+Without LAC, the third message would have listed only `end of file, LOAD or
+FIND`. By the time the error is detected, LALR(1) default reductions have
+already closed the optional clauses of `FIND`.
+
+**The UniProt connection.** The failure in §5.2 came from the evaluation
+sandbox's network policy, not from the code. Its proxy refused `CONNECT
+rest.uniprot.org:443` with HTTP 403. The review found three real weaknesses on
+this path, all now fixed:
+
+1. **Misleading exit code.** It reported `curl exit code 5632` (D3).
+2. **No cause given.** With `curl -f`, a proxy refusal surfaces as exit code 22,
+   the same code as a UniProt HTTP error, so the message gave no way to tell a
+   blocked network from a bad query. It now reads:
+   `a proxy refused the connection to rest.uniprot.org (HTTP 403); the network
+   policy may not allow that host`.
+3. **No retries.** Transient failures were not retried. `--retry 2` now covers
+   timeouts, HTTP 429 and 5xx.
+
+Testing exposed one more cleanup problem. UniProt writes `... activity
+{ECO:...}.`, and stripping the tag left a stray space before the full stop
+(`activity .`). `cleanFunction()` now removes whitespace in front of
+`. , ; : )`.
+
+The UniProt parsing path, including the `FUNCTION:` prefix, evidence tags, CRLF
+line endings, empty function columns, incomplete rows and the "no entries"
+error, is now covered offline. The tests use synthetic cached responses in
+`tests/fixtures/cache/`. A live request still needs network access to
+`rest.uniprot.org`.
+
+**Performance after the fixes.** These were measured as in §5.3, at 10⁶
+records:
+
+| Query | Before | After | Speed-up |
+|-------|-------:|------:|---------:|
+| Q1 `COUNT` (load-dominated, control) | 2.81 s | 2.80 s | — |
+| Q3 `SEARCH` substring | 5.01 s | 4.69 s | 1.07× |
+| Q5 string `SORT` + `TOP` | 8.46 s | 3.58 s | **2.36×** |
+
+At 10⁵ records, Q5 fell from 0.78 s to 0.32 s.
+
+The WebAssembly build was rebuilt with the CI-pinned Emscripten 6.0.9 and
+exercised under Node.js. It gives the same results as the native build, and it
+stayed correct across 200 consecutive failing parses in one module instance,
+which is the situation where the D4 leak used to accumulate.
+
+The items in §7 (Future Work) other than diagnostics, testing and the sort
+performance remain open.
 
 ---
 

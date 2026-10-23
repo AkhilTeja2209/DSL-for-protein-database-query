@@ -1,0 +1,1 @@
+LOAD UNIPROT "insulin" TOP 12.5

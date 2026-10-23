@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "stage": "parse",
+  "statements": 0,
+  "ast": "",
+  "errors": [
+    "Lexical Error: unexpected character '\"' at line 1",
+    "Syntax Error at line 1: unexpected identifier, expecting UNIPROT or string"
+  ],
+  "sources": [],
+  "results": []
+}

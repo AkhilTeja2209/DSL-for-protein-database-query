@@ -1,0 +1,75 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 4,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  WHERE organism = \"Human\"\n    AND length > 500\n     OR organism = \"Chicken\"\n  SORT BY length DESC\n  DISPLAY proteinid name organism length\nStatement 3: FIND\n  entity: proteins\n  SEARCH \"MVLSPADK\"\n  DISPLAY name length\nStatement 4: FIND\n  entity: proteins\n  WHERE organism = \"Human\"\n  COUNT\n",
+  "errors": [],
+  "sources": [
+    "dataset/proteins.csv -> 5 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "display",
+      "matched": 3,
+      "returned": 3,
+      "columns": [
+        "proteinid",
+        "name",
+        "organism",
+        "length"
+      ],
+      "rows": [
+        [
+          "P005",
+          "Albumin",
+          "Human",
+          "609"
+        ],
+        [
+          "P001",
+          "Hemoglobin",
+          "Human",
+          "574"
+        ],
+        [
+          "P004",
+          "Lysozyme",
+          "Chicken",
+          "147"
+        ]
+      ]
+    },
+    {
+      "entity": "proteins",
+      "kind": "display",
+      "matched": 1,
+      "returned": 1,
+      "columns": [
+        "name",
+        "length"
+      ],
+      "rows": [
+        [
+          "Hemoglobin",
+          "574"
+        ]
+      ]
+    },
+    {
+      "entity": "proteins",
+      "kind": "count",
+      "matched": 3,
+      "returned": 3,
+      "columns": [
+        "proteinid",
+        "name",
+        "organism",
+        "length",
+        "function",
+        "sequence"
+      ],
+      "rows": []
+    }
+  ]
+}

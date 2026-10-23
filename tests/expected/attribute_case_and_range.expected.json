@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  WHERE Length >= 147\n    AND LENGTH <= 574\n  SORT BY name ASC\n",
+  "errors": [],
+  "sources": [
+    "dataset/proteins.csv -> 5 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "default",
+      "matched": 2,
+      "returned": 2,
+      "columns": [
+        "proteinid",
+        "name",
+        "organism",
+        "length",
+        "function",
+        "sequence"
+      ],
+      "rows": [
+        [
+          "P001",
+          "Hemoglobin",
+          "Human",
+          "574",
+          "Oxygen Transport",
+          "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF"
+        ],
+        [
+          "P004",
+          "Lysozyme",
+          "Chicken",
+          "147",
+          "Enzyme",
+          "KVFGRCELAAAMKRHGLDNYRGYSLGNWVCAAKFESNFNTQATNRNTD"
+        ]
+      ]
+    }
+  ]
+}

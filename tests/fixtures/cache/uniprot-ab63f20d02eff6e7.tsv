@@ -1,0 +1,14 @@
+Entry	Protein names	Organism	Length	Function [CC]	Sequence
+TEST01	Test kinase 1	Homo sapiens (Human)	1520	FUNCTION: Synthetic test kinase 1 activity {ECO:0000269|PubMed:1001}. Binds ATP {ECO:0000250|UniProtKB:TEST01}.	HEQCMICMAKCCKTDFPWNIYAVGDDHTEN
+TEST02	Test kinase 2	Homo sapiens (Human)	640	FUNCTION: Synthetic test kinase 2 activity {ECO:0000269|PubMed:1002}. Binds ATP {ECO:0000250|UniProtKB:TEST02}.	PIMCCFQKHNLGSQFNMVRGYDKSELAQSN
+TEST03	Test kinase 3	Homo sapiens (Human)	980	FUNCTION: Synthetic test kinase 3 activity {ECO:0000269|PubMed:1003}. Binds ATP {ECO:0000250|UniProtKB:TEST03}.	VHQNNLTWLQCRPYTGIQALEDCSDFIVCK
+TESTXX	Incomplete entry	Homo sapiens (Human)
+TEST04	Test kinase 4	Homo sapiens (Human)	2210	FUNCTION: Synthetic test kinase 4 activity {ECO:0000269|PubMed:1004}. Binds ATP {ECO:0000250|UniProtKB:TEST04}.	MVTVGKIVYEEFFLNGAKINYQMPQCVSVS
+TEST05	Test kinase 5	Homo sapiens (Human)	310		IIDPCCFEHCAEDIAVPDGHIDTYLLCDHG
+TEST06	Test kinase 6	Homo sapiens (Human)	880	FUNCTION: Synthetic test kinase 6 activity {ECO:0000269|PubMed:1006}. Binds ATP {ECO:0000250|UniProtKB:TEST06}.	TEAYMDMAMYVQGIESMSHFTYVTTRFMIA
+TEST07	Test kinase 7	Homo sapiens (Human)	1275	FUNCTION: Synthetic test kinase 7 activity {ECO:0000269|PubMed:1007}. Binds ATP {ECO:0000250|UniProtKB:TEST07}.	AGGQYKWYYIFFEFPWTLQSCQWSSLESHT
+TEST08	Test kinase 8	Homo sapiens (Human)	450	FUNCTION: Synthetic test kinase 8 activity {ECO:0000269|PubMed:1008}. Binds ATP {ECO:0000250|UniProtKB:TEST08}.	YIKWREDEWTDTYQIMDAYPMWKVTFGGFN
+TEST09	Test kinase 9	Homo sapiens (Human)	805	FUNCTION: Synthetic test kinase 9 activity {ECO:0000269|PubMed:1009}. Binds ATP {ECO:0000250|UniProtKB:TEST09}.	GKDWILNWKWMMMAKEASELRNHMNSDNFG
+TEST10	Test kinase 10	Homo sapiens (Human)	799	FUNCTION: Synthetic test kinase 10 activity {ECO:0000269|PubMed:1010}. Binds ATP {ECO:0000250|UniProtKB:TEST10}.	SMNSWKPMMQLMLWQVWGNWTDDKCFCQSV
+TEST11	Test kinase 11	Homo sapiens (Human)	1890	FUNCTION: Synthetic test kinase 11 activity {ECO:0000269|PubMed:1011}. Binds ATP {ECO:0000250|UniProtKB:TEST11}.	ERQDVYFYILYTEKMHEHRANKAHPMCYSY
+TEST12	Test kinase 12	Homo sapiens (Human)	1100	FUNCTION: Synthetic test kinase 12 activity {ECO:0000269|PubMed:1012}. Binds ATP {ECO:0000250|UniProtKB:TEST12}.	DGASGDKWTGDWNRCCQKCWPTCVCVLHNW

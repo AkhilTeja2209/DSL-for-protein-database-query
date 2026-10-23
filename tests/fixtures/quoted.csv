@@ -1,0 +1,3 @@
+ProteinID,Name,Organism,Length,Function,Sequence
+Q001,"Kinase, putative",Human,420,"Binds ""ATP"" and Mg",MKTAYIAK
+Q002,Plain,Mouse,90,Enzyme,MSTNPKPQ

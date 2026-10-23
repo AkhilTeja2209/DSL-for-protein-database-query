@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "semantic",
+  "statements": 1,
+  "ast": "Statement 1: LOAD UNIPROT\n  query: \"insulin\"\n  limit: 12.5\n",
+  "errors": [
+    "Semantic Error: LOAD UNIPROT TOP must be a whole number, got 12.5"
+  ],
+  "sources": [],
+  "results": []
+}

@@ -22,7 +22,7 @@ OBJS     := $(SRCS:%.cpp=$(BUILD)/%.o) $(BUILD)/lexer.yy.o $(BUILD)/parser.tab.o
 
 GENERATED := $(BUILD)/parser.tab.cpp $(BUILD)/lexer.yy.cpp
 
-.PHONY: all clean clean-wasm run-valid run-invalid wasm serve
+.PHONY: all clean clean-wasm run-valid run-invalid test test-asan wasm serve
 
 all: $(BIN)
 
@@ -60,6 +60,21 @@ run-valid: $(BIN)
 run-invalid: $(BIN)
 	-./$(BIN) sample_queries/invalid_query.dsl
 
+# Golden-file tests: every program in tests/cases/ and sample_queries/ against
+# its expected JSON in tests/expected/. Needs no network (see tests/run_tests.py).
+test: $(BIN)
+	$(PYTHON) tests/run_tests.py $(BIN)
+
+# The same tests on a build with AddressSanitizer (including leak detection)
+# and UndefinedBehaviorSanitizer, in its own build directory. Any report fails
+# the test that triggered it. Needs gcc or clang with sanitizer support.
+ASAN_FLAGS := -std=c++17 -Wall -Wextra -I. -g -O1 -fno-omit-frame-pointer \
+	-fsanitize=address,undefined -fno-sanitize-recover=all
+
+test-asan:
+	$(MAKE) BUILD=build-asan BIN=bin/proteindsl-asan CXXFLAGS="$(ASAN_FLAGS)"
+	$(PYTHON) tests/run_tests.py bin/proteindsl-asan
+
 # docs/ is a plain static directory -- any web server will do; this is just
 # the one that needs no installing.
 serve: wasm
@@ -93,7 +108,7 @@ wasm: $(GENERATED)
 	@echo "docs/ is ready -- serve it with: make serve"
 
 clean:
-	rm -rf $(BUILD) bin
+	rm -rf $(BUILD) build-asan bin
 
 clean-wasm:
 	rm -rf $(DOCS)

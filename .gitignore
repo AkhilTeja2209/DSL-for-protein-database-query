@@ -1,5 +1,6 @@
 # Build output (see Makefile: BUILD := build, BIN := bin/proteindsl)
 build/
+build-asan/
 bin/
 
 # Cached UniProt REST responses (executor.cpp)

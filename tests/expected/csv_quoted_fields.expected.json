@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"tests/fixtures/quoted.csv\"\nStatement 2: FIND\n  entity: proteins\n  DISPLAY name function\n",
+  "errors": [],
+  "sources": [
+    "tests/fixtures/quoted.csv -> 2 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "display",
+      "matched": 2,
+      "returned": 2,
+      "columns": [
+        "name",
+        "function"
+      ],
+      "rows": [
+        [
+          "Kinase, putative",
+          "Binds \"ATP\" and Mg"
+        ],
+        [
+          "Plain",
+          "Enzyme"
+        ]
+      ]
+    }
+  ]
+}
