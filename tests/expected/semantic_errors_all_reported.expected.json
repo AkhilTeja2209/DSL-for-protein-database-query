@@ -1,0 +1,19 @@
+{
+  "ok": false,
+  "stage": "semantic",
+  "statements": 1,
+  "ast": "Statement 1: FIND\n  entity: genes\n  WHERE length = \"300\"\n    AND name > 5\n    AND weight = 1\n  SORT BY mass ASC\n  TOP 0\n  DISPLAY foo\n",
+  "errors": [
+    "Semantic Error: FIND 'genes' used before any LOAD; no dataset has been declared",
+    "Semantic Error: Unknown entity 'genes' (the only queryable entity is 'proteins')",
+    "Semantic Error: Attribute 'length' expects a numeric value, got \"300\"",
+    "Semantic Error: Cannot compare string attribute 'name' with numeric operator '>'",
+    "Semantic Error: Attribute 'name' expects a string value, got 5",
+    "Semantic Error: Unknown protein attribute 'weight'",
+    "Semantic Error: Unknown protein attribute 'mass' in SORT BY",
+    "Semantic Error: TOP must be a positive integer, got 0",
+    "Semantic Error: Unknown protein attribute 'foo' in DISPLAY"
+  ],
+  "sources": [],
+  "results": []
+}

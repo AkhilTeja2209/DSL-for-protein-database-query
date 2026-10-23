@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 4,
+  "ast": "Statement 1: LOAD\n  file: \"tests/fixtures/quoted.csv\"\nStatement 2: FIND\n  entity: proteins\n  COUNT\nStatement 3: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 4: FIND\n  entity: proteins\n  COUNT\n",
+  "errors": [],
+  "sources": [
+    "tests/fixtures/quoted.csv -> 2 record(s)",
+    "dataset/proteins.csv -> 5 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "count",
+      "matched": 2,
+      "returned": 2,
+      "columns": [
+        "proteinid",
+        "name",
+        "organism",
+        "length",
+        "function",
+        "sequence"
+      ],
+      "rows": []
+    },
+    {
+      "entity": "proteins",
+      "kind": "count",
+      "matched": 5,
+      "returned": 5,
+      "columns": [
+        "proteinid",
+        "name",
+        "organism",
+        "length",
+        "function",
+        "sequence"
+      ],
+      "rows": []
+    }
+  ]
+}

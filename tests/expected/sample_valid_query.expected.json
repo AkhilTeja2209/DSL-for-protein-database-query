@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  WHERE organism = \"Human\"\n    AND length > 300\n  DISPLAY name length function\n",
+  "errors": [],
+  "sources": [
+    "dataset/proteins.csv -> 5 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "display",
+      "matched": 2,
+      "returned": 2,
+      "columns": [
+        "name",
+        "length",
+        "function"
+      ],
+      "rows": [
+        [
+          "Hemoglobin",
+          "574",
+          "Oxygen Transport"
+        ],
+        [
+          "Albumin",
+          "609",
+          "Transport"
+        ]
+      ]
+    }
+  ]
+}

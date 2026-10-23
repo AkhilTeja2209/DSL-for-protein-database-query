@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "runtime",
+  "statements": 2,
+  "ast": "Statement 1: LOAD UNIPROT\n  query: \"no such protein\"\n  limit: 50\nStatement 2: FIND\n  entity: proteins\n  COUNT\n",
+  "errors": [
+    "Runtime Error: UniProt returned no entries for this query"
+  ],
+  "sources": [],
+  "results": []
+}

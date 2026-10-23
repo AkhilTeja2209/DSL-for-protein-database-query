@@ -22,6 +22,7 @@ int lex_errors = 0;
 
 %option noyywrap
 %option yylineno
+%option nounput
 
 %%
 

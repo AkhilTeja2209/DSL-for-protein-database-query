@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "stage": "done",
+  "statements": 2,
+  "ast": "Statement 1: LOAD UNIPROT\n  query: \"kinase AND organism_id:9606 AND reviewed:true\"\n  limit: 100\nStatement 2: FIND\n  entity: proteins\n  DISPLAY proteinid length function\n",
+  "errors": [],
+  "sources": [
+    "UniProt \"kinase AND organism_id:9606 AND reviewed:true\" (cached) -> 12 record(s)"
+  ],
+  "results": [
+    {
+      "entity": "proteins",
+      "kind": "display",
+      "matched": 12,
+      "returned": 12,
+      "columns": [
+        "proteinid",
+        "length",
+        "function"
+      ],
+      "rows": [
+        [
+          "TEST01",
+          "1520",
+          "Synthetic test kinase 1 activity. Binds ATP."
+        ],
+        [
+          "TEST02",
+          "640",
+          "Synthetic test kinase 2 activity. Binds ATP."
+        ],
+        [
+          "TEST03",
+          "980",
+          "Synthetic test kinase 3 activity. Binds ATP."
+        ],
+        [
+          "TEST04",
+          "2210",
+          "Synthetic test kinase 4 activity. Binds ATP."
+        ],
+        [
+          "TEST05",
+          "310",
+          ""
+        ],
+        [
+          "TEST06",
+          "880",
+          "Synthetic test kinase 6 activity. Binds ATP."
+        ],
+        [
+          "TEST07",
+          "1275",
+          "Synthetic test kinase 7 activity. Binds ATP."
+        ],
+        [
+          "TEST08",
+          "450",
+          "Synthetic test kinase 8 activity. Binds ATP."
+        ],
+        [
+          "TEST09",
+          "805",
+          "Synthetic test kinase 9 activity. Binds ATP."
+        ],
+        [
+          "TEST10",
+          "799",
+          "Synthetic test kinase 10 activity. Binds ATP."
+        ],
+        [
+          "TEST11",
+          "1890",
+          "Synthetic test kinase 11 activity. Binds ATP."
+        ],
+        [
+          "TEST12",
+          "1100",
+          "Synthetic test kinase 12 activity. Binds ATP."
+        ]
+      ]
+    }
+  ]
+}

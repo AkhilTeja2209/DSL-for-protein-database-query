@@ -27,6 +27,7 @@
 %{
 #include <cstdio>
 #include <cstdlib>
+#include <cctype>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -36,15 +37,32 @@ int yylex();
 void yyerror(const char* msg);
 
 extern int yylineno;
+extern char* yytext;
 
 Program g_program;
 std::vector<std::string> g_parseErrors;
 
-// Sentinel for an absent `TOP n` clause. TOP is validated as a positive
-// integer during semantic analysis, so -1 can never be a real value.
+// Sentinel for an absent `TOP n` clause. The lexer has no negative
+// literals, so -1 can never be a real value.
 static const double kNoTop = -1.0;
 
+// Converts a TOP literal to a count only when it is one, so an out-of-range
+// value never reaches the (undefined) double-to-long conversion. Anything
+// else is left at 0 and reported by semantic analysis from the literal.
+static long toCount(double v) {
+    return isValidCount(v) ? static_cast<long>(v) : 0;
+}
+
 %}
+
+/* Name the expected tokens in syntax errors ("unexpected COUNT, expecting
+   string or number"), not just "syntax error"; see yyreport_syntax_error.
+   LAC makes that list exact: without it, LALR default reductions have already
+   closed the optional clauses, so `FIND proteins Where ...` would list only
+   what may start the next statement. Needs Bison 3.6+. */
+%require "3.6"
+%define parse.error custom
+%define parse.lac full
 
 %union {
     char*                       strval;
@@ -60,10 +78,13 @@ static const double kNoTop = -1.0;
     ValueLiteral*               vallit;
 }
 
-%token LOAD UNIPROT FIND WHERE AND OR COUNT DISPLAY SORT BY ASC DESC TOP SEARCH
-%token GE LE NE EQ GT LT
-%token <strval> IDENTIFIER STRING
-%token <numval> NUMBER
+/* The quoted aliases are how each token is named in syntax errors. */
+%token LOAD "LOAD" UNIPROT "UNIPROT" FIND "FIND" WHERE "WHERE" AND "AND"
+%token OR "OR" COUNT "COUNT" DISPLAY "DISPLAY" SORT "SORT" BY "BY"
+%token ASC "ASC" DESC "DESC" TOP "TOP" SEARCH "SEARCH"
+%token GE ">=" LE "<=" NE "!=" EQ "=" GT ">" LT "<"
+%token <strval> IDENTIFIER "identifier" STRING "string"
+%token <numval> NUMBER "number"
 
 %type <whereclause> where_opt or_expr
 %type <andgroup>    and_expr
@@ -76,6 +97,12 @@ static const double kNoTop = -1.0;
 %type <sortdir>     dir_opt
 %type <numval>      top_opt
 %type <outspec>     output_opt
+
+/* After a syntax error Bison discards whatever is on its stack. These free
+   the strdup'd lexemes and partial AST nodes it discards; without them every
+   failed parse leaks, which adds up in the long-lived wasm module. */
+%destructor { free($$); } <strval>
+%destructor { delete $$; } <andgroup> <whereclause> <cond> <idlist> <sortspec> <outspec> <vallit>
 
 %%
 
@@ -99,7 +126,10 @@ statement:
           s.loadSource = LoadSource::UNIPROT;
           s.uniprotQuery = $3;
           free($3);
-          if ($4 != kNoTop) s.uniprotLimit = static_cast<long>($4);
+          if ($4 != kNoTop) {
+              s.uniprotLimitLiteral = $4;
+              s.uniprotLimit = toCount($4);
+          }
           g_program.push_back(s);
       }
     | FIND IDENTIFIER search_opt where_opt sort_opt top_opt output_opt {
@@ -116,7 +146,11 @@ statement:
               s.sortDir = $5->dir;
               delete $5;
           }
-          if ($6 != kNoTop) { s.hasTop = true; s.topN = static_cast<long>($6); }
+          if ($6 != kNoTop) {
+              s.hasTop = true;
+              s.topLiteral = $6;
+              s.topN = toCount($6);
+          }
           if ($7) {
               s.output = $7->kind;
               s.displayFields = $7->fields;
@@ -192,14 +226,7 @@ value:
           free($1);
       }
     | NUMBER {
-          // Format without a forced ".000000" for whole numbers like 300.
-          char buf[64];
-          if ($1 == static_cast<long long>($1)) {
-              snprintf(buf, sizeof(buf), "%lld", static_cast<long long>($1));
-          } else {
-              snprintf(buf, sizeof(buf), "%g", $1);
-          }
-          $$ = new ValueLiteral{ std::string(buf), true };
+          $$ = new ValueLiteral{ formatNumber($1), true };
       }
     ;
 
@@ -253,12 +280,55 @@ id_list:
 
 %%
 
+namespace {
+
+// Keywords are uppercase only, so `find` lexes as an identifier and the
+// resulting error says nothing about case. Returns the keyword the offending
+// identifier was probably meant to be, or "" if it is not one.
+std::string keywordFor(const char* lexeme) {
+    static const char* const keywords[] = {
+        "LOAD", "UNIPROT", "FIND", "WHERE", "AND", "OR", "COUNT", "DISPLAY",
+        "SORT", "BY", "ASC", "DESC", "TOP", "SEARCH"
+    };
+    if (!lexeme) return "";
+    std::string upper(lexeme);
+    for (char& c : upper) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    if (upper == lexeme) return "";  // already uppercase, so not a case mistake
+    for (const char* k : keywords) {
+        if (upper == k) return k;
+    }
+    return "";
+}
+
+} // namespace
+
+// Builds the "unexpected X, expecting A, B or C" message. Bison's own
+// `detailed` mode gives up listing past four expected tokens, which is
+// exactly where a list is most useful (after `FIND proteins`, any clause).
+int yyreport_syntax_error(const yypcontext_t* ctx) {
+    std::string msg = "unexpected ";
+    msg += yysymbol_name(yypcontext_token(ctx));
+
+    yysymbol_kind_t expected[YYNTOKENS];
+    const int n = yypcontext_expected_tokens(ctx, expected, YYNTOKENS);
+    for (int i = 0; i < n; ++i) {
+        msg += (i == 0 ? ", expecting " : (i + 1 == n ? " or " : ", "));
+        msg += yysymbol_name(expected[i]);
+    }
+    yyerror(msg.c_str());
+    return 0;
+}
+
 // Bison calls this on a parse error. The message is recorded as well as
 // printed, so that --json (and therefore the web playground) reports the line
 // number and reason instead of a bare "Parsing failed."
 void yyerror(const char* msg) {
-    const std::string text = "Syntax Error at line " + std::to_string(yylineno) +
-                             ": " + msg;
+    std::string text = "Syntax Error at line " + std::to_string(yylineno) +
+                       ": " + msg;
+    const std::string keyword = keywordFor(yytext);
+    if (!keyword.empty()) {
+        text += " (keywords are uppercase: did you mean '" + keyword + "'?)";
+    }
     g_parseErrors.push_back(text);
     fprintf(stderr, "%s\n", text.c_str());
 }

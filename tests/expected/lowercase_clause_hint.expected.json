@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "parse",
+  "statements": 1,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\n",
+  "errors": [
+    "Syntax Error at line 2: unexpected identifier, expecting end of file, LOAD, FIND, WHERE, COUNT, DISPLAY, SORT, TOP or SEARCH (keywords are uppercase: did you mean 'WHERE'?)"
+  ],
+  "sources": [],
+  "results": []
+}

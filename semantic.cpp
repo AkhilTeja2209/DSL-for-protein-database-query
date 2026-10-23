@@ -2,6 +2,7 @@
 #include "semantic.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 
 namespace {
 
@@ -12,7 +13,26 @@ bool isNumericOp(CompareOp op) {
 
 // UniProt's REST API caps a single TSV page at 500 entries; asking for more
 // would silently return fewer, so reject it up front instead.
-const long kMaxUniProtLimit = 500;
+const double kMaxUniProtLimit = 500;
+
+// Checks a TOP literal: a whole number from 1 to `max`. NUMBER also lexes
+// fractions and values too large to be a count, so all three are checked here
+// rather than letting the parser truncate them. Returns "" if it is valid.
+std::string checkCount(const std::string& what, double value, double max) {
+    if (value <= 0) {
+        return "Semantic Error: " + what + " must be a positive integer, got " +
+               formatNumber(value);
+    }
+    if (value != std::floor(value)) {
+        return "Semantic Error: " + what + " must be a whole number, got " +
+               formatNumber(value);
+    }
+    if (value > max) {
+        return "Semantic Error: " + what + " must be at most " + formatNumber(max) +
+               ", got " + formatNumber(value);
+    }
+    return "";
+}
 
 } // namespace
 
@@ -46,15 +66,9 @@ bool validateProgram(const Program& program, std::vector<std::string>& errors) {
         if (s.type == StmtType::LOAD) {
             seenLoad = true;
             if (s.loadSource == LoadSource::UNIPROT) {
-                if (s.uniprotLimit <= 0) {
-                    errors.push_back("Semantic Error: LOAD UNIPROT TOP must be a "
-                                     "positive integer, got " +
-                                     std::to_string(s.uniprotLimit));
-                } else if (s.uniprotLimit > kMaxUniProtLimit) {
-                    errors.push_back("Semantic Error: LOAD UNIPROT TOP must be at most " +
-                                     std::to_string(kMaxUniProtLimit) + ", got " +
-                                     std::to_string(s.uniprotLimit));
-                }
+                const std::string topError =
+                    checkCount("LOAD UNIPROT TOP", s.uniprotLimitLiteral, kMaxUniProtLimit);
+                if (!topError.empty()) errors.push_back(topError);
                 if (s.uniprotQuery.empty()) {
                     errors.push_back("Semantic Error: LOAD UNIPROT requires a non-empty "
                                      "query string");
@@ -112,9 +126,9 @@ bool validateProgram(const Program& program, std::vector<std::string>& errors) {
             }
         }
 
-        if (s.hasTop && s.topN <= 0) {
-            errors.push_back("Semantic Error: TOP must be a positive integer, got " +
-                             std::to_string(s.topN));
+        if (s.hasTop) {
+            const std::string topError = checkCount("TOP", s.topLiteral, kMaxCount);
+            if (!topError.empty()) errors.push_back(topError);
         }
 
         for (const std::string& field : s.displayFields) {

@@ -1,6 +1,8 @@
 // ast.cpp
 // Implementation of the small AST helpers declared in ast.h.
 #include "ast.h"
+#include <cmath>
+#include <cstdio>
 #include <ostream>
 
 const char* compareOpToString(CompareOp op) {
@@ -13,6 +15,22 @@ const char* compareOpToString(CompareOp op) {
         case CompareOp::NE: return "!=";
     }
     return "?";
+}
+
+bool isValidCount(double v) {
+    return v >= 1 && v <= kMaxCount && v == std::floor(v);
+}
+
+std::string formatNumber(double v) {
+    char buf[64];
+    if (v == std::floor(v) && std::fabs(v) < 1e18) {
+        std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(v));
+    } else if (v == std::floor(v)) {
+        std::snprintf(buf, sizeof(buf), "%.0f", v);  // too big for long long
+    } else {
+        std::snprintf(buf, sizeof(buf), "%g", v);
+    }
+    return buf;
 }
 
 namespace {
@@ -43,7 +61,7 @@ void printProgram(const Program& program, std::ostream& out) {
             if (s.loadSource == LoadSource::UNIPROT) {
                 out << "LOAD UNIPROT\n";
                 out << "  query: \"" << s.uniprotQuery << "\"\n";
-                out << "  limit: " << s.uniprotLimit << "\n";
+                out << "  limit: " << formatNumber(s.uniprotLimitLiteral) << "\n";
             } else {
                 out << "LOAD\n";
                 out << "  file: \"" << s.loadFile << "\"\n";
@@ -64,7 +82,7 @@ void printProgram(const Program& program, std::ostream& out) {
                 << (s.sortDir == SortDir::DESC ? "DESC" : "ASC") << "\n";
         }
 
-        if (s.hasTop) out << "  TOP " << s.topN << "\n";
+        if (s.hasTop) out << "  TOP " << formatNumber(s.topLiteral) << "\n";
 
         if (s.output == OutputKind::COUNT) {
             out << "  COUNT\n";

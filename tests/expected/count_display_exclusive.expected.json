@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "parse",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"dataset/proteins.csv\"\nStatement 2: FIND\n  entity: proteins\n  WHERE organism = \"Human\"\n  COUNT\n",
+  "errors": [
+    "Syntax Error at line 2: unexpected DISPLAY, expecting end of file, LOAD or FIND"
+  ],
+  "sources": [],
+  "results": []
+}

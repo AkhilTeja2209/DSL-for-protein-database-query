@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "stage": "runtime",
+  "statements": 2,
+  "ast": "Statement 1: LOAD\n  file: \"tests/fixtures/nonnumeric.csv\"\nStatement 2: FIND\n  entity: proteins\n  COUNT\n",
+  "errors": [
+    "Runtime Error: non-numeric Length at line 2 in 'tests/fixtures/nonnumeric.csv'"
+  ],
+  "sources": [],
+  "results": []
+}

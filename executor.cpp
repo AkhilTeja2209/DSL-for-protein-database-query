@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -13,6 +14,11 @@
 #include <map>
 #include <ostream>
 #include <sstream>
+#include <utility>
+
+#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#include <sys/wait.h>  // WEXITSTATUS, for decoding std::system()'s result
+#endif
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -42,9 +48,11 @@ namespace {
 
 std::string toLower(const std::string& s) { return toLowerField(s); }
 
-bool containsCI(const std::string& haystack, const std::string& needle) {
-    if (needle.empty()) return true;
-    return toLower(haystack).find(toLower(needle)) != std::string::npos;
+// `needleLower` must already be lower-cased; callers do that once per query
+// rather than once per record.
+bool containsCI(const std::string& haystack, const std::string& needleLower) {
+    if (needleLower.empty()) return true;
+    return toLower(haystack).find(needleLower) != std::string::npos;
 }
 
 std::string trim(const std::string& s) {
@@ -147,9 +155,9 @@ bool matchWhere(const ProteinRecord& rec, const WhereClause& where) {
 
 // SEARCH is a free-text, case-insensitive substring scan over every attribute,
 // which also makes it a convenient (if naive) sequence-motif search.
-bool matchSearch(const ProteinRecord& rec, const std::string& term) {
+bool matchSearch(const ProteinRecord& rec, const std::string& termLower) {
     for (const std::string& f : proteinFields()) {
-        if (containsCI(fieldValue(rec, f), term)) return true;
+        if (containsCI(fieldValue(rec, f), termLower)) return true;
     }
     return false;
 }
@@ -188,6 +196,56 @@ std::string hashHex(const std::string& s) {
     os << std::hex << std::setw(16) << std::setfill('0') << h;
     return os.str();
 }
+
+// std::system() returns a wait status on POSIX, not the command's exit code:
+// curl's exit 22 arrives as 5632 (22 << 8). Windows returns the code as is.
+int commandExitCode(int status) {
+#ifdef _WIN32
+    return status;
+#else
+    if (status == -1) return -1;
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
+}
+
+// Explains an HTTP failure (curl exit 22). `connectCode` is the proxy's answer
+// to CONNECT: non-zero and not 200 means the proxy refused, and UniProt was
+// never reached.
+std::string describeHttpFailure(int httpCode, int connectCode) {
+    if (connectCode != 0 && connectCode != 200) {
+        return "a proxy refused the connection to rest.uniprot.org (HTTP " +
+               std::to_string(connectCode) + "); the network policy may not "
+               "allow that host";
+    }
+    const std::string status = "HTTP " + std::to_string(httpCode);
+    if (httpCode == 400) {
+        return "UniProt rejected the query (" + status + "); check the UniProt "
+               "query syntax";
+    }
+    if (httpCode == 429 || httpCode >= 500) {
+        return "UniProt is busy or unavailable (" + status + "); try again later";
+    }
+    return "UniProt answered " + status;
+}
+
+// Turns curl's exit code into the likely cause, so a blocked network, a
+// rejected query and a missing curl each read differently.
+std::string describeCurlFailure(int code, int httpCode, int connectCode) {
+    switch (code) {
+        case 6:   return "could not resolve rest.uniprot.org (no DNS, or offline)";
+        case 7:   return "could not connect to rest.uniprot.org";
+        case 22:  return describeHttpFailure(httpCode, connectCode);
+        case 28:  return "the request timed out";
+        case 35:
+        case 60:  return "the TLS connection to rest.uniprot.org failed";
+        case 56:  return connectCode != 0 && connectCode != 200
+                             ? describeHttpFailure(httpCode, connectCode)
+                             : "the connection failed while receiving data";
+        case 127: return "curl is not installed or not on PATH";
+        case -1:  return "curl could not be run";
+        default:  return "curl failed";
+    }
+}
 #endif
 
 // UniProt annotates function text with a leading "FUNCTION: " and evidence tags
@@ -206,12 +264,17 @@ std::string cleanFunction(const std::string& raw) {
         if (depth == 0) out.push_back(c);
     }
 
-    // Collapse the whitespace left behind by the removed tags.
+    // Collapse the whitespace left behind by the removed tags. A tag usually
+    // sits just before punctuation ("activity {ECO:...}."), so a space left in
+    // front of . , ; : or ) is dropped too.
     std::string collapsed;
     bool prevSpace = false;
     for (char c : out) {
         const bool isSpace = (c == ' ' || c == '\t');
         if (isSpace && prevSpace) continue;
+        if (std::strchr(".,;:)", c) && prevSpace && !collapsed.empty()) {
+            collapsed.pop_back();
+        }
         collapsed.push_back(isSpace ? ' ' : c);
         prevSpace = isSpace;
     }
@@ -405,15 +468,29 @@ bool loadUniProt(const std::string& query,
     // the compiler itself dependency-free (no libcurl to find and link against).
     // Only the percent-encoded URL varies with user input -- see urlEncode.
     const std::string tmpPath = cachePath + ".part";
+    // --retry covers UniProt's transient answers (timeouts, 429, 5xx), which
+    // curl retries on its own; a rejected query (HTTP 400) is not retried.
+    // -w writes the HTTP status and the proxy's CONNECT status to a side file,
+    // which is what tells "UniProt said no" apart from "a proxy said no".
+    const std::string statusPath = cachePath + ".status";
     const std::string cmd =
-        "curl -s -S -f -L --max-time 60 -A \"ProteinDSL/1.0\" -o \"" +
-        tmpPath + "\" \"" + url + "\"";
+        "curl -s -S -f -L --max-time 60 --retry 2 --retry-delay 2 "
+        "-A \"ProteinDSL/1.0\" -w \"%{http_code} %{http_connect}\" -o \"" +
+        tmpPath + "\" \"" + url + "\" > \"" + statusPath + "\"";
 
-    const int rc = std::system(cmd.c_str());
-    if (rc != 0) {
+    const int code = commandExitCode(std::system(cmd.c_str()));
+    int httpCode = 0, connectCode = 0;
+    {
+        std::ifstream status(statusPath);
+        status >> httpCode >> connectCode;
+    }
+    fs::remove(statusPath, ec);
+
+    if (code != 0) {
         fs::remove(tmpPath, ec);
-        error = "Runtime Error: UniProt request failed (curl exit code " +
-                std::to_string(rc) + "). Check network access and the query syntax.";
+        error = "Runtime Error: UniProt request failed: " +
+                describeCurlFailure(code, httpCode, connectCode) +
+                " (curl exit code " + std::to_string(code) + ")";
         return false;
     }
 
@@ -439,9 +516,10 @@ bool runQuery(const Statement& stmt,
     result.kind = stmt.output;
 
     // --- filter: SEARCH and WHERE both have to pass ---
+    const std::string searchLower = toLower(stmt.searchTerm);
     std::vector<const ProteinRecord*> hits;
     for (const ProteinRecord& rec : records) {
-        if (stmt.hasSearch && !matchSearch(rec, stmt.searchTerm)) continue;
+        if (stmt.hasSearch && !matchSearch(rec, searchLower)) continue;
         if (!matchWhere(rec, stmt.where)) continue;
         hits.push_back(&rec);
     }
@@ -452,15 +530,25 @@ bool runQuery(const Statement& stmt,
         const std::string key = toLower(stmt.sortField);
         const bool numeric = isNumericField(key);
         const bool desc = (stmt.sortDir == SortDir::DESC);
-        std::stable_sort(hits.begin(), hits.end(),
-            [&](const ProteinRecord* a, const ProteinRecord* b) {
-                if (numeric) {
+        if (numeric) {
+            std::stable_sort(hits.begin(), hits.end(),
+                [&](const ProteinRecord* a, const ProteinRecord* b) {
                     return desc ? (a->length > b->length) : (a->length < b->length);
-                }
-                const std::string va = toLower(fieldValue(*a, key));
-                const std::string vb = toLower(fieldValue(*b, key));
-                return desc ? (va > vb) : (va < vb);
-            });
+                });
+        } else {
+            // Lower-case each key once up front: doing it inside the comparator
+            // costs two allocations per comparison, which dominated large sorts.
+            std::vector<std::pair<std::string, const ProteinRecord*>> keyed;
+            keyed.reserve(hits.size());
+            for (const ProteinRecord* rec : hits) {
+                keyed.emplace_back(toLower(fieldValue(*rec, key)), rec);
+            }
+            std::stable_sort(keyed.begin(), keyed.end(),
+                [&](const auto& a, const auto& b) {
+                    return desc ? (a.first > b.first) : (a.first < b.first);
+                });
+            for (size_t i = 0; i < keyed.size(); ++i) hits[i] = keyed[i].second;
+        }
     }
 
     // --- TOP ---
