@@ -33,13 +33,13 @@ concurrency:
 
 # Pinned to the toolchain the build was verified against.
 env:
-  EMSDK_VERSION: 6.0.9
+  EMSDK_VERSION: 6.0.13
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install flex and bison
         run: sudo apt-get update && sudo apt-get install -y flex bison
@@ -47,7 +47,7 @@ jobs:
       # ~650 MB of toolchain, so it is cached on the pinned version.
       - name: Cache Emscripten
         id: cache-emsdk
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: emsdk
           key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
@@ -76,8 +76,8 @@ jobs:
           make test PYTHON=python3
           make test-asan PYTHON=python3
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
 
@@ -89,4 +89,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

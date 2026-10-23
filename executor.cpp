@@ -29,14 +29,22 @@
 // keep its ordinary synchronous shape.
 //
 // Returns a malloc'd UTF-8 string the caller frees, or 0 on any failure.
+// The HTTP status of the last request is kept for js_last_fetch_status: 0 when
+// no response arrived at all (offline, blocked, or refused by CORS).
 EM_ASYNC_JS(char*, js_fetch_text, (const char* url), {
+    Module.proteindslFetchStatus = 0;
     try {
         const response = await fetch(UTF8ToString(url));
+        Module.proteindslFetchStatus = response.status;
         if (!response.ok) return 0;
         return stringToNewUTF8(await response.text());
     } catch (e) {
         return 0;
     }
+});
+
+EM_JS(int, js_last_fetch_status, (), {
+    return Module.proteindslFetchStatus || 0;
 });
 #endif
 
@@ -183,6 +191,27 @@ std::string urlEncode(const std::string& s) {
     return out;
 }
 
+// Explains a failed UniProt response, for both builds: curl's exit 22 natively,
+// a non-ok fetch() in the browser. `connectCode` is a proxy's answer to
+// CONNECT (native only; 0 otherwise): non-zero and not 200 means the proxy
+// refused, and UniProt was never reached.
+std::string describeHttpFailure(int httpCode, int connectCode) {
+    if (connectCode != 0 && connectCode != 200) {
+        return "a proxy refused the connection to rest.uniprot.org (HTTP " +
+               std::to_string(connectCode) + "); the network policy may not "
+               "allow that host";
+    }
+    const std::string status = "HTTP " + std::to_string(httpCode);
+    if (httpCode == 400) {
+        return "UniProt rejected the query (" + status + "); check the UniProt "
+               "query syntax";
+    }
+    if (httpCode == 429 || httpCode >= 500) {
+        return "UniProt is busy or unavailable (" + status + "); try again later";
+    }
+    return "UniProt answered " + status;
+}
+
 #ifndef __EMSCRIPTEN__
 // FNV-1a, used only to give each distinct query a stable cache filename. The
 // browser build caches by URL in memory instead, so it needs no filename.
@@ -206,26 +235,6 @@ int commandExitCode(int status) {
     if (status == -1) return -1;
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 #endif
-}
-
-// Explains an HTTP failure (curl exit 22). `connectCode` is the proxy's answer
-// to CONNECT: non-zero and not 200 means the proxy refused, and UniProt was
-// never reached.
-std::string describeHttpFailure(int httpCode, int connectCode) {
-    if (connectCode != 0 && connectCode != 200) {
-        return "a proxy refused the connection to rest.uniprot.org (HTTP " +
-               std::to_string(connectCode) + "); the network policy may not "
-               "allow that host";
-    }
-    const std::string status = "HTTP " + std::to_string(httpCode);
-    if (httpCode == 400) {
-        return "UniProt rejected the query (" + status + "); check the UniProt "
-               "query syntax";
-    }
-    if (httpCode == 429 || httpCode >= 500) {
-        return "UniProt is busy or unavailable (" + status + "); try again later";
-    }
-    return "UniProt answered " + status;
 }
 
 // Turns curl's exit code into the likely cause, so a blocked network, a
@@ -425,8 +434,11 @@ bool loadUniProt(const std::string& query,
 
     char* raw = js_fetch_text(url.c_str());
     if (!raw) {
-        error = "Runtime Error: the UniProt request failed. Check your network "
-                "connection and the query syntax.";
+        const int status = js_last_fetch_status();
+        error = "Runtime Error: UniProt request failed: " +
+                (status == 0 ? std::string("could not reach rest.uniprot.org "
+                                           "(offline, or blocked by the network)")
+                             : describeHttpFailure(status, 0));
         return false;
     }
     const std::string body(raw);

@@ -313,8 +313,8 @@ Syntax Error at line 1: unexpected identifier, expecting end of file, LOAD or FI
 **Runtime errors** cover the world outside the program: `could not open
 dataset file`, `malformed row at line N (expected 6 columns, got M)`,
 `non-numeric Length at line N`, `UniProt returned no entries for this query`,
-and a failed UniProt request. A failed request names its cause, so a blocked
-network reads differently from a bad query:
+and a failed UniProt request. A failed request names its cause, in both the
+CLI and the browser, so a blocked network reads differently from a bad query:
 
 | Message (after `UniProt request failed:`) | Cause |
 |------------------|-------|
@@ -323,6 +323,7 @@ network reads differently from a bad query:
 | `UniProt is busy or unavailable (HTTP 503)` | Rate limiting or an outage, after two retries |
 | `could not resolve rest.uniprot.org` / `could not connect` / `the request timed out` | No network |
 | `curl is not installed or not on PATH` | The native build shells out to `curl` |
+| `could not reach rest.uniprot.org (offline, or blocked by the network)` | Browser only: no response arrived |
 
 ### 3.9 Worked examples
 

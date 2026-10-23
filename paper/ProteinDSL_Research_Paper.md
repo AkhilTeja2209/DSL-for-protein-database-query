@@ -5,7 +5,8 @@
 **Live artefact:** <https://akhilteja2209.github.io/DSL-for-protein-database-query/>
 **Document type:** Technical report on the repository at commit `a3662e0`.
 Sections 1–8 describe and evaluate that commit; §9 records the fixes made
-afterwards in response to the review.
+afterwards in response to the review, and §10 the live verification and
+toolchain updates that followed.
 
 ---
 
@@ -48,7 +49,8 @@ documented sample programs:
 - there is no automated test suite.
 
 We describe each one and propose a fix. §9 reports the fixes as made and
-re-measured.
+re-measured. §10 records that live UniProt queries were then confirmed to
+work in the deployed browser build.
 
 **Keywords:** domain-specific languages, compiler construction, Flex, Bison,
 LALR(1), semantic analysis, bioinformatics, UniProt, WebAssembly, Emscripten.
@@ -114,6 +116,8 @@ This report documents and evaluates the following:
 - §5 presents the evaluation.
 - §6 discusses design decisions, limitations and threats to validity.
 - §7 outlines future work, and §8 concludes.
+- §9 and §10 record the fixes made after the review, the live verification
+  and the toolchain updates.
 - Appendices give the full grammar, the error catalogue and the steps to
   reproduce the results.
 
@@ -505,7 +509,8 @@ The GitHub Actions workflow (`pages.yml`) runs on every push to `main` that
 touches source, data, samples or the web UI. It does the following:
 
 1. Installs Flex and Bison.
-2. Restores a cached, version-pinned Emscripten SDK (6.0.9).
+2. Restores a cached, version-pinned Emscripten SDK (6.0.9 at the reviewed
+   commit; 6.0.13 since §10).
 3. Runs `make wasm` and checks that the three build outputs exist and are
    non-empty.
 4. Builds the native CLI and checks that the documented sample still produces
@@ -571,7 +576,7 @@ documents:
 | `valid_query.dsl` | Hemoglobin (574) and Albumin (609) | as expected | 0 |
 | `advanced_query.dsl` | OR/SORT: Albumin, Hemoglobin, Lysozyme; SEARCH: Hemoglobin; COUNT = 3 | as expected | 0 |
 | `invalid_query.dsl` | 3 semantic errors | as expected (all 3 reported) | 3 |
-| `uniprot_query.dsl` | 10 longest human kinases | **not reproduced here**: outbound access to `rest.uniprot.org` was blocked by the evaluation sandbox (HTTP 403); runtime error reported correctly | 4 |
+| `uniprot_query.dsl` | 10 longest human kinases | **not reproduced here**: outbound access to `rest.uniprot.org` was blocked by the evaluation sandbox (HTTP 403); runtime error reported correctly. Later confirmed live in the deployed site (§10). | 4 |
 
 **Edge-case battery.** We ran 16 more programs through `--json`:
 
@@ -756,7 +761,8 @@ filesystem. The native CLI reads any path it is given.
   WebAssembly build uses `-O2` but was not benchmarked.
 - **UniProt not tested here.** The UniProt path could not be exercised in the
   evaluation environment. Its correctness is argued from the code and the README
-  rather than observed.
+  rather than observed. Live operation was later confirmed in the deployed
+  browser build (§10); the native CLI's live path remains unobserved by us.
 - **Single machine.** All timings come from one machine and are best-of-three
   wall-clock times. Measurements of a few milliseconds are close to the noise
   floor of process start-up.
@@ -890,6 +896,84 @@ performance remain open.
 
 ---
 
+## 10. Addendum: Live Verification and Toolchain Updates
+
+### 10.1 Deployment of the fixes
+
+The fixes in §9 were merged into `main` as pull request #1. The merge triggered
+the deployment workflow (run #4), and every step passed:
+
+- the WebAssembly build;
+- `make test` and `make test-asan`, each reporting *All 37 tests passed*;
+- the upload of the site and its deployment to GitHub Pages.
+
+The merged `main` was compared with the commit tested locally, and the two
+trees are identical.
+
+### 10.2 Live UniProt confirmation
+
+After deployment, the author ran live `LOAD UNIPROT` queries on the public
+site and confirmed that they return UniProt data. This closes the gap noted in
+§5.2 and §6.4 for the browser build, which reaches UniProt with the page's own
+`fetch()`.
+
+The native CLI's live path is still unobserved by us. The evaluation sandbox
+cannot reach `rest.uniprot.org`. That build's request, caching and parsing code
+is covered offline by the fixture tests (§9), and its failure path was checked
+against the real blocking proxy.
+
+### 10.3 Browser failure messages
+
+In the native build, D3 gave each kind of UniProt failure its own message. The
+browser build still reported every failure as *"the UniProt request failed.
+Check your network connection and the query syntax."*
+
+It now matches the native build. `js_fetch_text()` records the HTTP status of
+the last request, and a new `js_last_fetch_status()` reads it back. A status of
+0 means no response arrived: the browser was offline, the request was blocked,
+or it was refused under CORS. `describeHttpFailure()` is now shared by both
+builds.
+
+We checked the browser path in Node.js, using the 6.0.13 build with
+`fetch` replaced by a stub that serves the test fixture after a real
+asynchronous delay:
+
+| Stubbed response | Result |
+|------------------|--------|
+| 200 with fixture data | 12 records loaded; same rows as the native build |
+| Same query again | Served from the in-memory cache; no second request |
+| HTTP 400 | `UniProt rejected the query (HTTP 400); check the UniProt query syntax` |
+| HTTP 503 | `UniProt is busy or unavailable (HTTP 503); try again later` |
+| `fetch` throws | `could not reach rest.uniprot.org (offline, or blocked by the network)` |
+
+The stub also confirmed that the browser build builds the same request URL as
+the native one.
+
+### 10.4 Toolchain updates
+
+The deployment log warned that several GitHub Actions in the workflow target
+Node.js 20, which GitHub has deprecated. Each action was moved to its current
+major version, all of which run on Node.js 24:
+
+| Action | Before | After |
+|--------|--------|-------|
+| `actions/checkout` | v4 | v7 |
+| `actions/cache` | v4 | v6 |
+| `actions/configure-pages` | v5 | v6 |
+| `actions/upload-pages-artifact` | v3 | v5 |
+| `actions/deploy-pages` | v4 | v5 |
+
+We checked each new version's metadata. The inputs the workflow passes still
+exist. The one change in behaviour, `upload-pages-artifact` skipping dotfiles
+since v4, does not affect `docs/`, which contains none.
+
+The pinned Emscripten SDK moved from 6.0.9 to 6.0.13, the latest release. With
+6.0.13, the WebAssembly build compiles without warnings and passes the checks
+in §10.3 and the 200-failing-parse check from §9. The native suite still passes
+37 of 37 tests, both normally and under the sanitizers.
+
+---
+
 ## References
 
 [1] The UniProt Consortium. "UniProt: the Universal Protein Knowledgebase in
@@ -973,20 +1057,24 @@ id_list     ::= IDENTIFIER | id_list IDENTIFIER
 
 ## Appendix B: Diagnostic Catalogue
 
+The catalogue below reflects the current version, including the changes in §9
+and §10.
+
 | Phase (exit) | Message template |
 |--------------|------------------|
 | Lexical (2) | `Lexical Error: unexpected character 'c' at line N` |
-| Syntax (2) | `Syntax Error at line N: syntax error` |
+| Syntax (2) | `Syntax Error at line N: unexpected T, expecting A, B or C` (plus `(keywords are uppercase: did you mean 'K'?)` for a lowercase keyword) |
 | Semantic (3) | `Unknown protein attribute 'X'` (also `… in DISPLAY` / `… in SORT BY`) |
 | Semantic (3) | `Unknown entity 'X' (the only queryable entity is 'proteins')` |
 | Semantic (3) | `Cannot compare string attribute 'X' with numeric operator 'op'` |
 | Semantic (3) | `Attribute 'X' expects a numeric value, got "v"` / `… a string value, got v` |
 | Semantic (3) | `FIND 'X' used before any LOAD; no dataset has been declared` |
-| Semantic (3) | `TOP must be a positive integer, got n` |
-| Semantic (3) | `LOAD UNIPROT TOP must be at most 500, got n` / `… requires a non-empty query string` |
+| Semantic (3) | `TOP must be a positive integer, got n` / `… a whole number, got n` / `… at most 2147483647, got n` |
+| Semantic (3) | `LOAD UNIPROT TOP must be at most 500, got n` (and the same whole-number rule) / `… requires a non-empty query string` |
 | Semantic (3) | `LOAD requires a non-empty file path` |
 | Runtime (4) | `could not open dataset file`, `malformed row at line N`, `non-numeric Length at line N` |
-| Runtime (4) | `UniProt returned no entries for this query`, `UniProt request failed (…)` |
+| Runtime (4) | `UniProt returned no entries for this query` |
+| Runtime (4) | `UniProt request failed: <cause>`, where the cause is a proxy refusal, HTTP 400 (bad query), HTTP 429/5xx (busy), no network, a timeout, or a missing `curl` (§9, §10.3) |
 | Usage (1) | Bad arguments, or the source file cannot be opened |
 
 ## Appendix C: Reproducing the Evaluation
